@@ -3,6 +3,8 @@
 #include "tap/algorithms/math_user_utils.hpp"
 #include "tap/drivers.hpp"
 
+#include "modm/math/geometry/angle.hpp"
+
 namespace src::motor
 {
 MotorSubsystem::MotorSubsystem(
@@ -24,35 +26,33 @@ void MotorSubsystem::initialize() { motor.initialize(); }
 
 float MotorSubsystem::getCurrentRpm() const
 {
-    // TODO(student): return how fast the motor is actually spinning, in RPM.
+    // getVelocity() reports post-gearbox radians per second. Radians -> revolutions is
+    // a divide by 2*pi, seconds -> minutes is a multiply by 60.
     //
-    // `motor.getEncoder()->getVelocity()` gives you the speed, but NOT in RPM -- read
-    // the doc comment on EncoderInterface::getVelocity() in taproot to find out what
-    // unit it actually returns, then convert.
-    //
-    // Getting this wrong is the most common way this exercise goes sideways: the PID
-    // will still "work", it will just be regulating a number that is off by a constant
-    // factor from what you think it is, and your gains will come out looking absurd.
-    return 0.0f;
+    // No gear ratio appears here on purpose: the encoder already accounts for it (that
+    // is what "post-gearbox" means), and the GM6020 is direct-drive anyway. Dividing by
+    // the gear ratio a second time is the classic bug in this function.
+    return motor.getEncoder()->getVelocity() * 60.0f / M_TWOPI;
 }
 
 void MotorSubsystem::runVelocityPid(float targetRpm)
 {
     this->targetRpm = targetRpm;
 
-    // TODO(student): close the velocity loop. Roughly:
-    //
-    //   1. If the motor is not online (`motor.isMotorOnline()`), call stop() and return
-    //      early. Skipping this lets the integral term wind up against a motor that is
-    //      not listening, so the motor lurches when it reconnects.
-    //   2. Compute the error: where we want to be, minus where we are (getCurrentRpm()).
-    //   3. Feed it to the PID: `velocityPid.runControllerDerivateError(error, dt)`.
-    //      Pass `tap::Drivers::DT` as dt -- this is called once per scheduler tick, and
-    //      DT is how many milliseconds that tick is.
-    //   4. Write the result out with `motor.setDesiredOutput(...)`.
-    //
-    // Until you do this, the motor will never move.
-    motor.setDesiredOutput(0);
+    // Nothing useful to do against a motor that is not answering, and running the PID
+    // anyway would wind the integral term up while the output goes nowhere -- so the
+    // motor would lurch the instant it reconnected.
+    if (!motor.isMotorOnline())
+    {
+        stop();
+        return;
+    }
+
+    const float error = targetRpm - getCurrentRpm();
+
+    velocityPid.runControllerDerivateError(error, tap::Drivers::DT);
+
+    motor.setDesiredOutput(velocityPid.getOutput());
 }
 
 void MotorSubsystem::stop()

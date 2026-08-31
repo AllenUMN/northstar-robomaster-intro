@@ -1,4 +1,10 @@
-# NorthStar Intro Project — Spin a GM6020
+# NorthStar Intro Project — Spin a GM6020 (SOLUTION BRANCH)
+
+> **This is the `solution` branch.** All four `TODO(student)` blocks are filled in.
+> Students should work on `develop`. `git diff develop..solution` is exactly the exercise.
+>
+> The PID gains here are a reasoned starting point, **not** a tuned result — they have
+> never been run against a real motor. See the comment in `standard_motor_constants.hpp`.
 
 Welcome. This is your first project on the robot codebase.
 

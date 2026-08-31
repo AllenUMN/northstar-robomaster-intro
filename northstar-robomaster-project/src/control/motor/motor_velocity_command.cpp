@@ -20,14 +20,9 @@ MotorVelocityCommand::MotorVelocityCommand(
 
 void MotorVelocityCommand::execute()
 {
-    // TODO(student): read the joystick and drive the motor toward that speed.
-    //
-    // `operatorInterface->getMotorVelocityInput()` gives you a number in [-1, 1].
-    // `motor->runVelocityPid(...)` wants RPM. `MAX_MOTOR_RPM` (in
-    // standard_motor_constants.hpp) is what full stick should correspond to.
-    //
-    // One line. Note that this is what actually steps the control loop -- the subsystem
-    // does nothing on its own, so if this is empty the motor never moves.
+    // Stick position in [-1, 1] scaled to the motor's usable speed range. This call is
+    // what steps the control loop -- the subsystem does nothing on its own.
+    motor->runVelocityPid(operatorInterface->getMotorVelocityInput() * MAX_MOTOR_RPM);
 }
 
 void MotorVelocityCommand::end([[maybe_unused]] bool interrupted)
