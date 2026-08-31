@@ -1,0 +1,17 @@
+*.pyc
+
+northstar-robomaster-project/build
+northstar-robomaster-project/Pipfile.lock
+project.xml.log
+
+.vscode/.cortex-debug.peripherals.state.json
+.vscode/.cortex-debug.registers.state.json
+.sconsign.dblite
+.robot_type.txt
+
+gcov-result
+
+docs/_build
+docs/api
+docs/doxyoutput
+.sconsign
