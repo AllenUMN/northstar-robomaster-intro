@@ -1,550 +1,103 @@
 #ifdef TARGET_STANDARD
 
-#include <memory>
-
 #include "tap/control/hold_command_mapping.hpp"
-#include "tap/control/hold_repeat_command_mapping.hpp"
 #include "tap/control/press_command_mapping.hpp"
+#include "tap/algorithms/transforms/transform.hpp"
 #include "tap/control/remote_map_state.hpp"
-#include "tap/control/sequential_command.hpp"
-#include "tap/control/setpoint/commands/move_integral_command.hpp"
-#include "tap/control/setpoint/commands/move_unjam_integral_comprised_command.hpp"
-#include "tap/control/toggle_command_mapping.hpp"
-#include "tap/control/trigger.hpp"
-#include "tap/control/trigger_helpers.hpp"
 #include "tap/drivers.hpp"
 #include "tap/util_macros.hpp"
 
-#include "control/cycle_state_command_mapping.hpp"
-#include "control/dummy_subsystem.hpp"
+#include "control/motor/motor_subsystem.hpp"
+#include "control/motor/motor_velocity_command.hpp"
+#include "control/safe_disconnect.hpp"
 #include "robot/standard/standard_drivers.hpp"
+#include "robot/standard/standard_motor_constants.hpp"
 
 #include "drivers_singleton.hpp"
 
-// chassis
-#include "control/chassis/chassis_auto_drive.hpp"
-#include "control/chassis/chassis_beyblade_command.hpp"
-#include "control/chassis/chassis_drive_command.hpp"
-#include "control/chassis/chassis_drive_distance_command.hpp"
-#include "control/chassis/chassis_drive_to_point_command.hpp"
-#include "control/chassis/chassis_field_command.hpp"
-#include "control/chassis/chassis_orient_drive_command.hpp"
-#include "control/chassis/chassis_subsystem.hpp"
-#include "control/chassis/chassis_wiggle_command.hpp"
-#include "control/chassis/constants/chassis_constants.hpp"
-
-// agitator
-#include "control/agitator/constant_velocity_agitator_command.hpp"
-#include "control/agitator/constants/agitator_constants.hpp"
-#include "control/agitator/manual_fire_rate_reselection_manager.hpp"
-#include "control/agitator/set_fire_rate_command.hpp"
-#include "control/agitator/unjam_spoke_agitator_command.hpp"
-#include "control/agitator/velocity_agitator_subsystem.hpp"
-
-// turret
-#include "tap/motor/double_dji_motor.hpp"
-
-#include "control/turret/algorithms/chassis_frame_imu_cal_turret_controller.hpp"
-#include "control/turret/algorithms/chassis_frame_turret_controller.hpp"
-#include "control/turret/algorithms/world_frame_chassis_imu_turret_controller.hpp"
-#include "control/turret/algorithms/world_frame_turret_can_imu_turret_controller.hpp"
-#include "control/turret/algorithms/world_frame_turret_imu_turret_controller.hpp"
-#include "control/turret/constants/turret_constants.hpp"
-#include "control/turret/test/turret_test_command.hpp"
-#include "control/turret/user/turret_quick_turn_command.hpp"
-#include "control/turret/user/turret_user_control_command.hpp"
-#include "control/turret/user/turret_user_world_relative_command.hpp"
-#include "robot/standard/standard_turret_subsystem.hpp"
-
-// cv
-#include "control/agitator/multi_shot_cv_command_mapping.hpp"
-#include "control/governor/cv_on_target_governor.hpp"
-#include "control/turret/cv/turret_cv_targeting_toggle_command.hpp"
-#include "control/turret/cv/turret_cv_control_command.hpp"
-
-// flywheel
-#include "control/flywheel/dji_two_flywheel_subsystem.hpp"
-#include "control/flywheel/flywheel_constants.hpp"
-#include "control/flywheel/two_flywheel_run_command.hpp"
-
-// imu
-#include "control/imu/imu_calibrate_command.hpp"
-
-// safe disconnect
-#include "control/safe_disconnect.hpp"
-
-// governor
-#include "tap/control/governor/governor_limited_command.hpp"
-#include "tap/control/governor/governor_with_fallback_command.hpp"
-
-#include "control/governor/fire_rate_limit_governor.hpp"
-#include "control/governor/fired_recently_governor.hpp"
-#include "control/governor/flywheel_on_governor.hpp"
-#include "control/governor/heat_limit_governor.hpp"
-#include "control/governor/plate_hit_governor.hpp"
-#include "control/governor/ref_system_projectile_launched_governor.hpp"
-
-#include "ref_system_constants.hpp"
-
-// BUZZER
-#include "control/buzzer/buzzer_subsystem.hpp"
-#include "control/buzzer/play_song_command.hpp"
-#include "control/buzzer/song/megalovania.hpp"
-#include "control/buzzer/song/tuff_startup_noise.hpp"
-#include "control/buzzer/song/twinkle_twinkle.hpp"
-
-// HUD
-#include "tap/communication/serial/ref_serial_transmitter.hpp"
-
-#include "control/clientDisplay/client_display_command.hpp"
-#include "control/clientDisplay/client_display_subsystem.hpp"
-#include "control/clientDisplay/graphics/core/infantry_draw_command.hpp"
-#include "control/clientDisplay/graphics/core/ui_subsystem.hpp"
-#include "control/clientDisplay/indicators/ammo_indicator.hpp"
-#include "control/clientDisplay/indicators/circle_crosshair.hpp"
-#include "control/clientDisplay/indicators/cv_aiming_indicator.hpp"
-#include "control/clientDisplay/indicators/flywheel_indicator.hpp"
-#include "control/clientDisplay/indicators/hud_indicator.hpp"
-#include "control/clientDisplay/indicators/shooting_mode_indicator.hpp"
-#include "control/clientDisplay/indicators/text_hud_indicators.hpp"
-#include "control/clientDisplay/indicators/vision_indicator.hpp"
-
-using tap::can::CanBus;
-using tap::communication::serial::Remote;
-using tap::motor::MotorId;
-
-using namespace tap::control::setpoint;
 using namespace tap::control;
-using namespace src::standard;
-using namespace src::control::turret;
 using namespace src::control;
-using namespace src::flywheel;
-using namespace src::control::flywheel;
-using namespace src::agitator;
-using namespace src::control::agitator;
-using namespace src::control::governor;
-using namespace tap::control::governor;
-// using namespace src::control::client_display;
-using namespace src::control::client_display::graphics;
-using namespace tap::communication::serial;
-using namespace src::control::buzzer;
+using namespace src::standard;
 
 driversFunc drivers = DoNotUse_getDrivers;
 
 namespace standard_control
 {
-DummySubsystem dummySubsystem(drivers());
+/*
+ * This file is where the robot gets assembled. Everything below is constructed once, at
+ * startup, and lives for the whole run -- there is no dynamic allocation.
+ *
+ * The pattern, which every robot in the real codebase follows:
+ *   1. Declare the subsystems (the hardware).
+ *   2. Declare the commands (the behaviors).
+ *   3. Register the subsystems with the scheduler.
+ *   4. Give each subsystem a default command.
+ *   5. Map any remaining commands to buttons/switches.
+ */
 
-// songs
-BuzzerSubsystem buzzerSubsystem(drivers());
-PlaySongCommand playStartupSongCommand(&buzzerSubsystem, tsnSong);
+// ---------------------------------------------------------------------------
+// Subsystems
+// ---------------------------------------------------------------------------
 
-// flywheel subsystem
-DJITwoFlywheelSubsystem flywheel(drivers(), LEFT_MOTOR_ID, RIGHT_MOTOR_ID, CAN_BUS);
-
-// flywheel commands
-TwoFlywheelRunCommand flywheelRunCommand(&flywheel, 19.7f, &drivers()->refSerial);
-
-// flywheel mappings
-Trigger xNotCtrlPressedFlywheels = (TriggerHelpers::button(drivers(), Remote::Key::X) &&
-                                    !TriggerHelpers::button(drivers(), Remote::Key::CTRL))
-                                       .toggleOnTrue(&flywheelRunCommand);
-
-Trigger leftSwitchUpFlywheels =
-    TriggerHelpers::switchState(drivers(), Remote::Switch::LEFT_SWITCH, Remote::SwitchState::UP)
-        .toggleOnTrue(&flywheelRunCommand);
-
-// agitator subsystem
-VelocityAgitatorSubsystem agitator(
+src::motor::MotorSubsystem motorSubsystem(
     drivers(),
-    constants::AGITATOR_PID_CONFIG,
-    constants::AGITATOR_CONFIG);
+    src::motor::MOTOR_ID,
+    src::motor::MOTOR_CAN_BUS,
+    src::motor::MOTOR_INVERTED,
+    src::motor::MOTOR_GEAR_RATIO,
+    src::motor::VELOCITY_PID_CONFIG);
 
-// agitator commands
-ConstantVelocityAgitatorCommand rotateAgitator(agitator, constants::AGITATOR_ROTATE_CONFIG);
+// ---------------------------------------------------------------------------
+// Commands
+// ---------------------------------------------------------------------------
 
-UnjamSpokeAgitatorCommand unjamAgitator(agitator, constants::AGITATOR_UNJAM_CONFIG);
-
-MoveUnjamIntegralComprisedCommand rotateAndUnjamAgitator(
-    *drivers(),
-    agitator,
-    rotateAgitator,
-    unjamAgitator);
-
-// agitator governors
-HeatLimitGovernor heatLimitGovernor(
-    *drivers(),
-    tap::communication::serial::RefSerialData::Rx::MechanismID::TURRET_17MM,
-    constants::HEAT_LIMIT_BUFFER);
-
-FlywheelOnGovernor flywheelOnGovernor(flywheel);
-
-RefSystemProjectileLaunchedGovernor refSystemProjectileLaunchedGovernor(
-    drivers()->refSerial,
-    tap::communication::serial::RefSerialData::Rx::MechanismID::TURRET_17MM);
-
-ManualFireRateReselectionManager manualFireRateReselectionManager;
-
-FireRateLimitGovernor fireRateLimitGovernor(manualFireRateReselectionManager);
-
-GovernorLimitedCommand<3> rotateAndUnjamAgitatorWhenFrictionWheelsOnUntilProjectileLaunched(
-    {&agitator},
-    rotateAndUnjamAgitator,
-    {&refSystemProjectileLaunchedGovernor, &fireRateLimitGovernor, &flywheelOnGovernor});
-
-extern cv::TurretCVControlCommand turretCVControlCommand;
-CvOnTargetGovernor cvOnTargetGovernor(drivers(), drivers()->visionComms, turretCVControlCommand);
-
-cv::TurretCVTargetingToggleCommand turretCvTargetingToggleCommand(
-    &dummySubsystem,
-    &turretCVControlCommand);
-
-Trigger vPressedTurretCvTargetingToggleCommand =
-    TriggerHelpers::button(drivers(), Remote::Key::V).onTrue(&turretCvTargetingToggleCommand);
-
-RemoteMapState cPressedNotCtrl({Remote::Key::C}, {Remote::Key::CTRL});
-auto cPressedNotCtrlCVGovernorToggle =
-    std::make_unique<CycleStateCommandMapping<bool, 2, CvOnTargetGovernor>>(
-        drivers(),
-        &cPressedNotCtrl,
-        true,
-        &cvOnTargetGovernor,
-        &CvOnTargetGovernor::setGovernorEnabled);
-
-GovernorLimitedCommand<2> rotateAndUnjamAgitatorWithHeatAndCVLimiting(
-    {&agitator},
-    rotateAndUnjamAgitatorWhenFrictionWheelsOnUntilProjectileLaunched,
-    {&heatLimitGovernor, &cvOnTargetGovernor});
-
-RemoteMapState leftMousePressed(RemoteMapState::MouseButton::LEFT);
-auto leftMousePressedShoot = std::make_unique<MultiShotCvCommandMapping>(
-    *drivers(),
-    rotateAndUnjamAgitatorWithHeatAndCVLimiting,
-    leftMousePressed,
-    &manualFireRateReselectionManager,
-    cvOnTargetGovernor,
-    &rotateAgitator);
-
-RemoteMapState leftSwitchDown(Remote::Switch::LEFT_SWITCH, Remote::SwitchState::DOWN);
-auto leftSwitchDownPressedShoot = std::make_unique<MultiShotCvCommandMapping>(
-    *drivers(),
-    rotateAndUnjamAgitatorWithHeatAndCVLimiting,
-    leftSwitchDown,
-    &manualFireRateReselectionManager,
-    cvOnTargetGovernor,
-    &rotateAgitator);
-
-RemoteMapState qPressed({Remote::Key::Q});
-RemoteMapState ePressed({Remote::Key::E});
-auto qOrEPressedCycleShotSpeed = std::make_unique<CycleStateCommandMapping<
-    MultiShotCvCommandMapping::LaunchMode,
-    MultiShotCvCommandMapping::NUM_SHOOTER_STATES,
-    MultiShotCvCommandMapping>>(
-    drivers(),
-    &qPressed,
-    MultiShotCvCommandMapping::SINGLE,
-    leftMousePressedShoot.get(),
-    &MultiShotCvCommandMapping::setShooterState,
-    ePressed);
-// TODO this is bad, often acidently get to the wrong state should have CV send a fire rate that
-// lines up with the rotation speed, so one 17 per plate at some rotation speed.
-
-// turret subsystem
-tap::motor::DjiMotor pitchMotor(
-    drivers(),
-    PITCH_MOTOR_ID,
-    CAN_BUS_PITCH,
-    false,
-    "PitchMotor",
-    false,
-    1,
-    PITCH_MOTOR_CONFIG.startEncoderValue);
-
-tap::motor::DjiMotor yawMotor(
-    drivers(),
-    YAW_MOTOR_ID_1,
-    CAN_BUS_YAW,
-    false,
-    "YawMotor1",
-    false,
-    1,  // tap::motor::DjiMotorEncoder::GEAR_RATIO_M3508 *(54.0f / 81.0f),
-    YAW_MOTOR_CONFIG.startEncoderValue,
-    &drivers()->encoder);  // TODO new encoder
-
-// TODO unfuck cordiate frame, make right hand rule.
-TurretSubsystem turret(drivers(), &pitchMotor, &yawMotor, PITCH_MOTOR_CONFIG, YAW_MOTOR_CONFIG);
-
-// TODO maybe make better controlers with diffrent control theory, look at UW.
-
-// turret controlers
-algorithms::ChassisFramePitchTurretController chassisFramePitchTurretController(
-    turret.pitchMotor,
-    chassis_rel::PITCH_PID_CONFIG);
-
-algorithms::ChassisFrameYawTurretController chassisFrameYawTurretController(
-    turret.yawMotor,
-    chassis_rel::YAW_PID_CONFIG);
-
-algorithms::ChassisFramePitchImuCalTurretController chassisFrameImuCalPitchTurretController(
-    turret.pitchMotor,
-    chassis_rel::PITCH_IMU_CAL_PID_CONFIG,
-    modm::toRadian(15),
-    4000,
-    modm::toRadian(4));
-
-algorithms::ChassisFrameYawImuCalTurretController chassisFrameImuCalYawTurretController(
-    turret.yawMotor,
-    chassis_rel::YAW_IMU_CAL_PID_CONFIG,
-    modm::toRadian(15),
-    4000,
-    modm::toRadian(4));
-
-algorithms::WorldFrameYawChassisImuTurretController worldFrameYawChassisImuController(
-    *drivers(),
-    turret.yawMotor,
-    world_rel_chassis_imu::YAW_PID_CONFIG);
-
-algorithms::WorldFramePitchChassisImuTurretController worldFramePitchChassisImuController(
-    *drivers(),
-    turret.pitchMotor,
-    world_rel_chassis_imu::PITCH_PID_CONFIG);
-
-tap::algorithms::SmoothPid worldFramePitchTurretPosPid(world_rel_turret_imu::PITCH_POS_PID_CONFIG);
-
-tap::algorithms::SmoothPid worldFramePitchTurretVelPid(world_rel_turret_imu::PITCH_VEL_PID_CONFIG);
-
-tap::algorithms::SmoothPid worldFrameYawTurretPosPid(world_rel_turret_imu::YAW_POS_PID_CONFIG);
-
-tap::algorithms::SmoothPid worldFrameYawTurretVelPid(world_rel_turret_imu::YAW_VEL_PID_CONFIG);
-
-// for imu fixed on turret
-algorithms::WorldFramePitchTurretImuCascadePidTurretController worldFramePitchTurretImuController(
-    *drivers(),
-    turret.pitchMotor,
-    worldFramePitchTurretPosPid,
-    worldFramePitchTurretVelPid);
-
-algorithms::WorldFrameYawTurretImuCascadePidTurretController worldFrameYawTurretImuController(
-    *drivers(),
-    turret.yawMotor,
-    worldFrameYawTurretPosPid,
-    worldFrameYawTurretVelPid);
-
-// turret commands
-user::TurretUserControlCommand turretUserControlCommand(
-    drivers(),
-    drivers()->controlOperatorInterface,
-    &turret,
-    &worldFrameYawTurretImuController,
-    &worldFramePitchTurretImuController,  //&worldFramePitchTurretImuController,
-    USER_YAW_INPUT_SCALAR,
-    USER_PITCH_INPUT_SCALAR);
-
-cv::TurretCVControlCommand turretCVControlCommand(
-    drivers(),
-    drivers()->controlOperatorInterface,
-    drivers()->visionComms,
-    &turret,
-    &worldFrameYawTurretImuController,
-    &worldFramePitchTurretImuController,
-    USER_YAW_INPUT_SCALAR,
-    USER_PITCH_INPUT_SCALAR);
-
-Trigger rightMousePressedCvControl =
-    TriggerHelpers::rightMouseButton(drivers()).whileTrue(&turretCVControlCommand);
-
-Trigger rightSwitchUpCvControl =
-    TriggerHelpers::switchState(drivers(), Remote::Switch::RIGHT_SWITCH, Remote::SwitchState::UP)
-        .whileTrue(&turretCVControlCommand);
-
-src::chassis::ChassisOdometry *chassisOdometry = new src::chassis::ChassisOdometry(
-    &drivers()->bmi088,
-    &turret.yawMotor,
-    src::chassis::DIST_TO_CENTER,
-    src::chassis::WHEEL_DIAMETER_M);
-
-// chassis subsystem
-// TODO unfuck cordiate frame, make right hand rule.
-// TODO get curent and voltage sensors and make good power limiting
-src::chassis::ChassisSubsystem chassisSubsystem(
-    drivers(),
-    src::chassis::ChassisConfig{
-        .leftFrontId = src::chassis::LEFT_FRONT_MOTOR_ID,
-        .leftBackId = src::chassis::LEFT_BACK_MOTOR_ID,
-        .rightBackId = src::chassis::RIGHT_BACK_MOTOR_ID,
-        .rightFrontId = src::chassis::RIGHT_FRONT_MOTOR_ID,
-        .canBus = CanBus::CAN_BUS1,
-        .wheelVelocityPidConfig = modm::Pid<float>::Parameter(
-            src::chassis::VELOCITY_PID_KP,
-            src::chassis::VELOCITY_PID_KI,
-            src::chassis::VELOCITY_PID_KD,
-            src::chassis::VELOCITY_PID_MAX_ERROR_SUM),
-    },
-    &turret.yawMotor,
-    chassisOdometry);
-
-src::chassis::ChassisDriveCommand chassisDriveCommand(
-    &chassisSubsystem,
+src::motor::MotorVelocityCommand motorVelocityCommand(
+    &motorSubsystem,
     &drivers()->controlOperatorInterface);
 
-src::chassis::ChassisOrientDriveCommand chassisOrientDriveCommand(
-    &chassisSubsystem,
-    &drivers()->controlOperatorInterface);
+// ---------------------------------------------------------------------------
+// Safe disconnect
+// ---------------------------------------------------------------------------
 
-src::chassis::ChassisBeybladeCommand chassisBeyBladeCommand(
-    &chassisSubsystem,
-    &drivers()->controlOperatorInterface,
-    -1,
-    true);
-
-src::chassis::ChassisWiggleCommand chassisWiggleCommand(
-    &chassisSubsystem,
-    &drivers()->controlOperatorInterface,
-    1.0f,
-    M_TWOPI);
-
-// Chassis Governors
-
-FiredRecentlyGovernor firedRecentlyGovernor(drivers(), 5000);
-
-PlateHitGovernor plateHitGovernor(drivers(), 5000);
-
-// chassis Mappings
-Trigger fPressedBeyblade =
-    TriggerHelpers::button(drivers(), Remote::Key::F).toggleOnTrue(&chassisBeyBladeCommand);
-
-Trigger rPressedOrientDrive =
-    TriggerHelpers::button(drivers(), Remote::Key::R).toggleOnTrue(&chassisOrientDriveCommand);
-
-Trigger bPressedNormDrive =
-    TriggerHelpers::button(drivers(), Remote::Key::B).toggleOnTrue(&chassisDriveCommand);
-
-Trigger gPressedWiggle =
-    TriggerHelpers::button(drivers(), Remote::Key::G).toggleOnTrue(&chassisWiggleCommand);
-
-Trigger rightswitchDownBeyblade =
-    TriggerHelpers::switchState(drivers(), Remote::Switch::RIGHT_SWITCH, Remote::SwitchState::DOWN)
-        .whileTrue(&chassisBeyBladeCommand);
-
-// imu commands
-// TODO Its anoying that this runs at the start every time, could make it use non imu control
-// starting at whatever position the robot was in when it turns on then when you calabrate it
-// changes to imu control
-imu::ImuCalibrateCommand imuCalibrateCommand(
-    drivers(),
-    {{
-        &turret,
-        &chassisFrameYawTurretController,
-        &chassisFramePitchTurretController,
-        true,
-    }},
-    &chassisSubsystem,
-    &playStartupSongCommand);
-
-Trigger ctrlZPressedImuCal = (TriggerHelpers::button(drivers(), Remote::Key::Z) &&
-                              TriggerHelpers::button(drivers(), Remote::Key::CTRL))
-                                 .onTrue(&imuCalibrateCommand);
-
-Trigger imuCalWhenWheelRight =
-    TriggerHelpers::channelLessThan(drivers(), Remote::Channel::WHEEL, -0.8)
-        .onTrue(&imuCalibrateCommand);
-
+/// Stops everything if the remote drops out mid-run.
 RemoteSafeDisconnectFunction remoteSafeDisconnectFunction(drivers());
 
-// TODO Need better ui for cv governor and yaw govornor
-src::control::client_display::graphics::UISubsystem ui(drivers());
-src::control::client_display::graphics::InfantryDrawCommand infantryDrawCommand(
-    drivers(),
-    &ui,
-    &turret,
-    // &flywheel,
-    &agitator,
-    &chassisSubsystem,
-    &flywheelOnGovernor,
-    leftMousePressedShoot.get(),
-    &imuCalibrateCommand,
-    &drivers()->visionComms,
-    &cvOnTargetGovernor);
+// ---------------------------------------------------------------------------
+// Wiring
+// ---------------------------------------------------------------------------
 
-Trigger ctrlCPressedUI = (TriggerHelpers::button(drivers(), Remote::Key::C) &&
-                          TriggerHelpers::button(drivers(), Remote::Key::CTRL))
-                             .onTrue(&infantryDrawCommand);
-
-void initializeSubsystems([[maybe_unused]] Drivers *drivers)
-{
-    dummySubsystem.initialize();
-    chassisSubsystem.initialize();
-    agitator.initialize();
-    flywheel.initialize();
-    turret.initialize();
-    buzzerSubsystem.initialize();
-}
+void initializeSubsystems([[maybe_unused]] Drivers *drivers) { motorSubsystem.initialize(); }
 
 void registerStandardSubsystems(Drivers *drivers)
 {
-    drivers->commandScheduler.registerSubsystem(&dummySubsystem);
-    drivers->commandScheduler.registerSubsystem(&chassisSubsystem);
-    drivers->commandScheduler.registerSubsystem(&agitator);
-    drivers->commandScheduler.registerSubsystem(&flywheel);
-    drivers->commandScheduler.registerSubsystem(&turret);
-    drivers->commandScheduler.registerSubsystem(&buzzerSubsystem);
-    drivers->commandScheduler.registerSubsystem(&ui);
+    drivers->commandScheduler.registerSubsystem(&motorSubsystem);
 }
 
 void setDefaultStandardCommands([[maybe_unused]] Drivers *drivers)
 {
-    chassisSubsystem.setDefaultCommand(&chassisOrientDriveCommand);
-    turret.setDefaultCommand(&turretUserControlCommand);
-    ui.setDefaultCommand(&infantryDrawCommand);
+    // A subsystem's default command runs whenever no other command has claimed it,
+    // which for this project means "always".
+    motorSubsystem.setDefaultCommand(&motorVelocityCommand);
 }
 
 void startStandardCommands(Drivers *drivers)
 {
-    drivers->visionComms.attachPitchMotor(&pitchMotor);
-    drivers->visionComms.attachOdometry(chassisOdometry);
-    drivers->visionComms.attachRemote(&drivers->remote);
-
+    // Tells the IMU how it is bolted to the board relative to the robot, so that its
+    // yaw/pitch/roll come out in the robot's frame rather than the chip's. The 180 here
+    // is the board being mounted upside down.
     drivers->bmi088.setMountingTransform(
         tap::algorithms::transforms::Transform(0, 0, 0, 0, modm::toRadian(0), modm::toRadian(180)));
 }
 
-void registerStandardIoMappings(Drivers *drivers)
+void registerStandardIoMappings([[maybe_unused]] Drivers *drivers)
 {
-    drivers->commandMapper.addMap(std::move(leftMousePressedShoot));
-    drivers->commandMapper.addMap(std::move(cPressedNotCtrlCVGovernorToggle));
-    drivers->commandMapper.addMap(std::move(qOrEPressedCycleShotSpeed));
-
-    drivers->commandMapper.addMap(std::move(leftSwitchDownPressedShoot));
-
-    /// TRIGGERS
-    /// Triggers don't need to be added to the command mapper since they register themselves
-    /// with the command scheduler when they are constructed, but just listing them here for
-    /// clarity
-    /*
-    xNotCtrlPressedFlywheels
-    fPressedBeyblade
-    rightMousePressedCvControl
-    gPressedWiggle
-    rPressedOrientDrive
-    bPressedNormDrive
-    rightswitchDownBeyblade
-    leftSwitchUpFlywheels
-    vPressedTurretCvTargetingToggleCommand
-    rightSwitchUpCvControl
-    ctrlZPressedImuCal
-    imuCalWhenWheelRight
-    ctrlCPressedUI
-    */
+    // Nothing mapped to buttons yet. When you add a second command later, this is where
+    // you would bind it -- see tap/control/hold_command_mapping.hpp and friends.
 }
 }  // namespace standard_control
 
 namespace src::standard
 {
-imu::ImuCalibrateCommandBase *getImuCalibrateCommand()
-{
-    return &standard_control::imuCalibrateCommand;
-}
-
 void initSubsystemCommands(src::standard::Drivers *drivers)
 {
     drivers->commandScheduler.setSafeDisconnectFunction(

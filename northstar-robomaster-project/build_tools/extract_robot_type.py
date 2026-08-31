@@ -18,24 +18,11 @@
 from build_tools.parse_args import USAGE
 from SCons.Script import *
 
-# TODO: Make this sync up with check.py and c_cpp_properties.json if possible
-VALID_ROBOT_TYPES   = [ "STANDARD",
-                        "HERO",
-                        "SENTRY",
-                        "DRONE",
-                        "ENGINEER",
-                        "TURRET",
-                        "TEST_BED"]
+VALID_ROBOT_TYPES = ["STANDARD"]
 
 
 ROBOT_CLASS = {
     "STANDARD": "standard",
-    "TURRET": "turret",
-    "ENGINEER": "engineer",
-    "SENTRY": "sentry",
-    "HERO": "hero",
-    "TEST_BED": "testbed",
-    "DRONE": "drone",
 }
 
 # Make sure that all robots have a class

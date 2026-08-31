@@ -53,23 +53,10 @@ jobs:
         run: |
           pipenv run scons build profile=debug profiling=true robot=STANDARD
 
-      # 7. Run SCons Build
-      # Runs specifically in the northstar-robomaster-project folder
-      - name: Build with SCons Sentry
+      # 7. Build the unit tests
+      # These are expected to fail until the exercise TODOs are done, so CI only
+      # checks that they COMPILE. Run them yourself with `scons run-tests`.
+      - name: Build unit tests
         working-directory: ./northstar-robomaster-project
         run: |
-          pipenv run scons build profile=debug profiling=true robot=SENTRY
-
-      # 8. Run SCons Build
-      # Runs specifically in the northstar-robomaster-project folder
-      - name: Build with SCons Hero
-        working-directory: ./northstar-robomaster-project
-        run: |
-          pipenv run scons build profile=debug profiling=true robot=HERO
-
-      # 9. Run SCons Build
-      # Runs specifically in the northstar-robomaster-project folder
-      - name: Build with SCons TestBed
-        working-directory: ./northstar-robomaster-project
-        run: |
-          pipenv run scons build profile=debug profiling=true robot=TEST_BED
+          pipenv run scons build-tests profile=fast robot=STANDARD

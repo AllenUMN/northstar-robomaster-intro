@@ -24,22 +24,8 @@
 
 #include "tap/util_macros.hpp"
 
-#ifdef TARGET_STANDARD
 #include "robot/standard/standard_drivers.hpp"
 namespace src::standard
-#elif TARGET_SENTRY
-#include "robot/sentry/sentry_drivers.hpp"
-namespace src::sentry
-#elif TARGET_HERO
-#include "robot/hero/hero_drivers.hpp"
-namespace src::hero
-#elif TURRET
-#include "robot/turret/turret_drivers.hpp"
-namespace src::gyro
-#elif TARGET_TEST_BED
-#include "robot/testbed/testbed_drivers.hpp"
-namespace src::testbed
-#endif
 {
 /**
  * @return The singleton instance of the Drivers class. This is the only instance of the
@@ -50,7 +36,7 @@ namespace src::testbed
  */
 Drivers *DoNotUse_getDrivers();
 using driversFunc = Drivers *(*)();
-}  // namespace src
+}  // namespace src::standard
 
 #endif  // DRIVERS_SINGLETON_HPP_
 

@@ -20,12 +20,6 @@
 #ifndef CONTROL_OPERATOR_INTERFACE_HPP_
 #define CONTROL_OPERATOR_INTERFACE_HPP_
 
-// mm tasty imports
-#include <tap/algorithms/linear_interpolation_predictor.hpp>
-#include <tap/algorithms/ramp.hpp>
-
-#include "tap/algorithms/linear_interpolation_predictor.hpp"
-#include "tap/algorithms/ramp.hpp"
 #include "tap/drivers.hpp"
 #include "tap/util_macros.hpp"
 
@@ -38,49 +32,31 @@ namespace control
  * CommandMapper handles the scheduling of Commands, this class is used
  * inside of Commands to interact with the remote. Filtering and normalization
  * is done in this class.
+ *
+ * Commands should never read `drivers->remote` directly. They ask this class
+ * instead, so that "which stick does what" lives in exactly one file.
  */
 class ControlOperatorInterface
 {
 public:
-    static constexpr int16_t USER_MOUSE_YAW_MAX = 1000;
-    static constexpr int16_t USER_MOUSE_PITCH_MAX = 1000;
-    static constexpr float USER_MOUSE_YAW_SCALAR = -(1.0f / USER_MOUSE_YAW_MAX);
-    static constexpr float USER_MOUSE_PITCH_SCALAR = -(1.0f / USER_MOUSE_PITCH_MAX);
-
-    static constexpr float REMOTE_TURRET_SCALAR = 0.6f;
+    /**
+     * Inputs smaller than this are treated as zero. The sticks on the DR16 do not
+     * reliably return exactly 0.0 when centered, and without a deadzone the motor
+     * would creep whenever the remote is on.
+     */
+    static constexpr float STICK_DEADZONE = 0.01f;
 
     ControlOperatorInterface(tap::Drivers *drivers) : drivers(drivers) {}
 
     /**
-     * @return the value used for turret yaw rotation, between about -1 and 1
-     *      this value can be greater or less than (-1, 1) since the mouse input has no
-     *      clear lower and upper bound.
+     * @return the operator's requested motor velocity, normalized to [-1, 1].
+     *      Positive is "forward" (stick pushed up). Returns exactly 0 inside the
+     *      deadzone.
      */
-    mockable float getTurretYawInput();
-
-    /**
-     * @return the value used for turret pitch rotation, between about -1 and 1
-     *      this value can be greater or less than (-1, 1) since the mouse input has no
-     *      clear lower and upper bound.
-     */
-    mockable float getTurretPitchInput();
-
-    float getDrivetrainHorizontalTranslation();
-
-    float getDrivetrainVerticalTranslation();
-
-    float getDrivetrainRotationalTranslation();
+    mockable float getMotorVelocityInput();
 
 private:
     tap::Drivers *drivers;
-
-    uint32_t prevUpdateCounterX = 0;
-    uint32_t prevUpdateCounterY = 0;
-    uint32_t prevUpdateCounterR = 0;
-
-    tap::algorithms::LinearInterpolationPredictor chassisXInput;
-    tap::algorithms::LinearInterpolationPredictor chassisYInput;
-    tap::algorithms::LinearInterpolationPredictor chassisRInput;
 };
 }  // namespace control
 

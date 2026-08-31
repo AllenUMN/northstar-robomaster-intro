@@ -1,172 +1,199 @@
-[![pipeline status](https://gitlab.com/aruw/controls/NorthStarFleet2025/badges/develop/pipeline.svg)](https://gitlab.com/aruw/controls/NorthStarFleet2025/-/commits/develop)
+# NorthStar Intro Project — Spin a GM6020
 
+Welcome. This is your first project on the robot codebase.
 
-## Resources
+By the end you will have made a motor spin under joystick control, using the same
+command-based structure the competition robots use. The repo has been stripped down to
+almost nothing so that the only code you have to understand is the code you are writing.
 
-- **The [Taproot wiki](https://gitlab.com/aruw/controls/taproot/-/wikis/home). It has lots of content and we strongly recommend you browse through it to get a sense of
-  what's there.**
-- [aruw-edu](https://gitlab.com/aruw/controls/aruw-edu): a hands-on tutorial for building robot code with Taproot
-- [aruw-mcb](https://gitlab.com/aruw/controls/aruw-mcb), ARUW's full robot code project available for reference
-- The [generated API documentation for Taproot](https://aruw.gitlab.io/controls/taproot/)
-- The [modm website](https://modm.io/) and associated documentation
+---
 
-## New user guide
+## The idea: subsystems and commands
 
-### Setting up a development environment
+The robot code is built out of two kinds of thing.
 
-If you want the easiest setup experience and **_do not_ require deploying code to hardware**,
-consider developing within the provided [Docker container](https://gitlab.com/aruw/controls/taproot/-/wikis/Docker-Container-Setup).
+**A Subsystem is a piece of hardware.** It owns the motor and is the only code allowed to
+talk to it. It knows *how* to do things — how to run a PID loop, how to convert units, how
+to keep itself safe when something is unplugged.
 
-Otherwise, follow the guide appropriate for your operating system.
-- Linux
-  - Debian: https://gitlab.com/aruw/controls/taproot/-/wikis/Debian-Linux-Setup
-  - Fedora: https://gitlab.com/aruw/controls/taproot/-/wikis/Fedora-Linux-Setup
-  - Other: follow one of the above guides, substituting your distribution's package names in place
-    of Debian or Fedora packages.
-- macOS: https://gitlab.com/aruw/controls/taproot/-/wikis/macOS-Setup
-- Windows: https://gitlab.com/aruw/controls/taproot/-/wikis/Windows-Setup
+**A Command is a behavior.** It decides *what* the robot should be doing right now. It
+reads operator input and tells subsystems what it wants. It never touches motors directly.
 
-Finally, install `pipenv` and set up the build tools:
+A scheduler ties them together. Every tick (every `tap::Drivers::DT` milliseconds) it:
 
-```
-pip3 install pipenv
-cd northstar-robomaster-project/
-pipenv install
-```
+1. calls `execute()` on every scheduled command, then
+2. calls `refresh()` on every registered subsystem.
 
-### Getting started with this repo
+The scheduler also guarantees that **only one command may control a given subsystem at a
+time**. That is the whole point of the structure: without it, two behaviors that both want
+the chassis would fight, writing conflicting outputs on alternating ticks.
 
-_Make sure you have followed the above setup instructions._
+In this project the control loop is *driven by the command*: `MotorVelocityCommand::execute()`
+calls `MotorSubsystem::runVelocityPid()` every tick, and the subsystem's `refresh()` is
+empty. That is how the turret works in the real codebase — the turret subsystem holds the
+motors, while whichever command is currently aiming runs the controller.
 
-Run the following to clone this repository:
+It matters because of where this goes next. Once velocity control works, a *position*
+controller, or one that holds a heading using the onboard IMU (the way the turret stays
+pointed while the chassis spins underneath it), is just another method on the subsystem
+plus another command. You pick between them by scheduling a different command; the
+subsystem never needs to know which mode it is in.
 
-```
-git clone --recursive https://github.com/GOFIRST-Robotics/RoboMaster2025NorthStar.git
-```
+---
 
-If you use the Docker container, or have already cloned the repository yourself, you should instead
-run:
+## Your task
 
-```
-git submodule update --init --recursive
-```
+Make a GM6020 spin at a speed set by the left stick, with a velocity PID holding that speed.
 
-Now, `cd` into the project directory (whatever folder name you created to store the project), activate the virtualenv, and run some builds:
+The files are already created and wired together. The build compiles right now and will
+flash to a board — the motor just won't move. Your job is to fill in four `TODO(student)`
+blocks.
 
-```
-cd project-directory/northstar-robomaster-project
-pipenv shell
-# Build for hardware
-scons build
-# Run automated tests
-scons run-tests
-```
+### 1. `src/control/motor/motor_subsystem.cpp` → `getCurrentRpm()`
 
-### Returning to the development environment
+Report how fast the motor is actually spinning, in RPM.
 
-**You will need to run `pipenv shell` from this directory _every time_ you open a new terminal,
-before using `scons` or `lbuild`.**
+`motor.getEncoder()->getVelocity()` gives you the speed, but **not in RPM**. Go read the
+doc comment on `getVelocity()` in
+`taproot/src/tap/communication/sensors/encoder/encoder_interface.hpp` and convert.
 
-## Workflow guide
+Get this wrong and the PID still "works" — it just regulates a number that's off by a
+constant factor from what you think, and your gains come out looking absurd. This is the
+most common way this exercise goes sideways.
 
-### Getting around VSCode
+### 2. `src/control/motor/motor_subsystem.cpp` → `runVelocityPid()`
 
-Microsoft provides a [helpful
-website](https://code.visualstudio.com/docs/getstarted/tips-and-tricks) with a number of shortcuts
-for getting around VSCode. There are many shortcuts that make programming faster.
+Close the loop:
 
-### Building code and programming the RoboMaster Development Board
+1. If `motor.isMotorOnline()` is false, call `stop()` and return early.
+2. Compute the error: target minus current.
+3. `velocityPid.runControllerDerivateError(error, dt)`, passing `tap::Drivers::DT` as `dt`.
+4. Write the result with `motor.setDesiredOutput(...)`.
 
-_If you would like to use the terminal instead, see the section "Building and running via the
-terminal" below._
+Step 1 is not optional bookkeeping. Skip it and the integral term winds up while the motor
+is unplugged, so the motor lurches at full output the moment it reconnects.
 
-1. Make sure you have VSCode opened in the folder `NorthStarFleet2025` (**not
-   `northstar-robomaster-project`**)
-2. Connect an ST-Link to the RoboMaster Development Board and your computer.
-3. In VSCode, open the Command Palette (<kbd>Ctrl</kbd>+<kbd>shift</kbd>+<kbd>P</kbd>)
-4. Find `Tasks: Run Task`. You should see the options below. Select `Program - Debug` or `Program -
-   Release`.<br><br>
-    <img
-    src=https://gitlab.com/aruw/controls/aruw-mcb/uploads/2ffb02c86387916c2c49ac3548151b38/image.png
-    height="200px" />
+### 3. `src/control/motor/motor_velocity_command.cpp` → `execute()`
 
-### Debugging with an ST-Link
+One line. `operatorInterface->getMotorVelocityInput()` returns a number in `[-1, 1]`;
+`motor->runVelocityPid()` wants RPM; `MAX_MOTOR_RPM` is what full stick should mean.
 
-1. Open the folder `aruw-northstar-robomaster-project` in VSCode. Hit the debug tab on the left side or type
-   <kbd>Ctrl</kbd>+<kbd>shift</kbd>+<kbd>D</kbd>.
-2. Hit the green play arrow on the left top of the screen.
-3. See [this
-   page](https://gitlab.com/aruw/controls/taproot/-/wikis/Software-Tools/Debugging-With-STLink) for
-   more information about using the ST-Link for programming the MCB and debugging. <br>
-   <img
-   src=https://gitlab.com/aruw/controls/aruw-mcb/uploads/1f62ea310a20ee76092fe18de83d14a7/image.png
-   height="400px" />
+This call is what actually steps the control loop. The subsystem does nothing on its own,
+so if `execute()` is empty the motor never moves no matter how good your PID is.
 
-### Debugging with a J-Link
+### 4. `src/robot/standard/standard_motor_constants.hpp` → PID gains
 
-See the [wiki](https://gitlab.com/aruw/controls/taproot/-/wikis/Debugging-With-JLink)
-for an explanation on the difference between an ST-Link and J-Link and a step-by-step procedure on
-how to use the J-Link.
+All three gains are `0.0f`, so the motor will not move even once the code above is right.
+Tune on hardware:
 
-### Selecting and using robot types
+1. Raise `kp` until the motor roughly reaches the speed you asked for.
+2. Add `kd` if it oscillates or overshoots.
+3. Add `ki` last, and only if it consistently settles short of the target.
 
-Specify the robot type via the command line when compiling (see
-[below](#building-and-running-via-the-terminal)). For vscode IntelliSense, navigate to
-`/northstar-robomaster-project/robot-type/robot_type.hpp` and change the macro defined in this file.
+Leave `maxOutput` alone — it is already correct, and the comment there explains why.
 
-Each robot is signified by a unique macro which can be checked to special-case code:
+---
 
-```c++
-#if defined(TARGET_STANDARD)
-// Only included if building for the Standard
-initializeStandard();
-#endif
-```
+## Building
 
-### How to select an appropriate VSCode C/C++ configuration
-
-This codebase has a number of different build targets (see [this wiki
-page](https://gitlab.com/aruw/controls/taproot/-/wikis/Build-Targets-Overview) for more
-information). Because the build setup is different for the test, sim, and RoboMaster Development
-Board (aka MCB) environments, while working on a particular portion of code you may select an
-appropriate profile that provides optimal
-[intellisense](https://code.visualstudio.com/docs/editor/intellisense). To select a configuration,
-in VSCode, type <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd>, then type "C/C++:Select a
-Configuration" and hit enter. A dropdown menu will appear where you may choose either the "Test",
-"Sim", or "Hardware" configuration.
-
-### Upgrading Taproot
-
-The Taproot project recommends that user projects occasionally upgrade the version of
-Taproot that they depend on. The guide for doing so is
-[here](https://gitlab.com/aruw/controls/taproot/-/wikis/Upgrading-a-Taproot-project). 
-
-## Building and running via the terminal
-
-The below commands require that your working directory is `/northstar-robomaster-project` (where the
-`SConstruct` and `project.xml` files are).
-
-- `lbuild build`: Re-generates out copy of `taproot` and `modm`.
-- `scons build`: Builds the firmware image for the hardware target. Creates a "release" folder located in `build/hardware/` which contains the final `.elf` file as well as the intermediate object files (`.o`).
-- `scons build-tests`: Builds a program which hosts our unit tests. This executable can be run on your host computer (only supported on Linux) and prints results for each unit test run.
-- `scons run`: Builds as with `scons build` and then programs the board.
-- `scons run-tests`: Builds and runs the unit test program.
-- `scons size`: Prints statistics on program size and (statically-)allocated memory. Note that the reported available heap space is an upper bound, and this tool has no way of knowing about the real size of dynamic allocations.
-
-Below is the full usage statement from our scons build environment. Note that you can select the
-robot, profile, or whether or not you want profiling to be on using the various options.
+From `northstar-robomaster-project/`:
 
 ```
-Usage: scons <target> [profile=<debug|release|fast>] [robot=TARGET_<ROBOT_TYPE>] [profiling=<true|false>]
-    "<target>" is one of:
-        - "build": build all code for the hardware platform.
-        - "run": build all code for the hardware platform, and deploy it to the board via a connected ST-Link.
-        - "build-tests": build core code and tests for the current host platform.
-        - "run-tests": build core code and tests for the current host platform, and execute them locally with the test runner.
-        - "run-tests-gcov": builds core code and tests, executes them locally, and captures and prints code coverage information
-        - "build-sim": build all code for the simulated environment, for the current host platform.
-        - "run-sim": build all code for the simulated environment, for the current host platform, and execute the simulator locally.
-    "TARGET_<ROBOT_TYPE>" is an optional argument that can override whatever robot type has been specified in robot_type.hpp.
-        - <ROBOT_TYPE> must be one of the following:
-            - STANDARD, DRONE, ENGINEER, SENTRY, HERO:
+pipenv install                                    # once, to set up the toolchain
+pipenv run scons build profile=debug robot=STANDARD
 ```
+
+To flash a connected board over ST-Link:
+
+```
+pipenv run scons run profile=debug robot=STANDARD
+```
+
+`STANDARD` is the only robot target in this repo. Asking for any other one is an error.
+
+## Testing
+
+```
+pipenv run scons run-tests profile=fast robot=STANDARD
+```
+
+`test/motor_subsystem_tests.cpp` checks the subsystem half of the exercise: safe-disconnect
+behavior, the offline guard, and that the PID pushes the output in the right direction.
+
+**These tests fail when you start.** That is intentional — a green suite is the definition
+of "done" for steps 1 and 2. They build their own PID gains rather than reading your
+tuned ones, so they test your control loop, not your tuning.
+
+CI only checks that the tests *compile*, so you will not be blocked by a red build while
+you work.
+
+---
+
+## Checking your work on hardware
+
+You need a board and a GM6020 on **CAN1**, with the dial on the back of the motor set to
+position **1**. (Dial position sets the CAN ID: position 1 is `0x205`, which taproot calls
+`MOTOR5`. If the motor doesn't respond, check this first — it's in
+`standard_motor_constants.hpp` if you need a different one.)
+
+It's working when:
+
+- Pushing the left stick forward spins the motor, and further forward spins it faster.
+- The motor **holds its speed when you load it by hand** — that's the PID doing its job. An
+  open-loop output would just slow down.
+- Releasing the stick coasts it to a stop.
+- Turning off the remote stops the motor immediately (`RemoteSafeDisconnectFunction`).
+
+⚠️ A GM6020 has real torque. Clamp it down and keep fingers and cables clear before you
+power it.
+
+---
+
+## Where things live
+
+```
+src/
+  main.cpp                          board init and the main loop
+  drivers_singleton.{hpp,cpp}       the one global Drivers instance
+  control/
+    motor/
+      motor_subsystem.{hpp,cpp}     >>> the motor + its PID (steps 1, 2)
+      motor_velocity_command.*      >>> joystick -> target speed (step 3)
+    safe_disconnect.{hpp,cpp}       stops everything if the remote drops
+  robot/
+    control_operator_interface.*    all remote reads live here, nowhere else
+    standard/
+      standard_control.cpp          where the robot gets assembled
+      standard_motor_constants.hpp  >>> IDs, limits, PID gains (step 4)
+      standard_drivers.hpp
+test/
+  motor_subsystem_tests.cpp
+```
+
+Read `standard_control.cpp` early. It is short, and it shows the whole pattern: declare
+subsystems, declare commands, register them, set a default command. Every real robot in the
+competition codebase is that same file, just much longer.
+
+## A note on `ControlOperatorInterface`
+
+Commands never read `drivers->remote` directly. They ask `ControlOperatorInterface`
+instead, so that "which stick does what" is defined in exactly one file. When you want to
+change the control scheme, you change it there and every command follows.
+
+It is already written for you — `getMotorVelocityInput()` reads the left stick and applies
+a deadzone. Read it; it's about ten lines, and it's the model for how you'd add a second
+axis later.
+
+## The IMU
+
+The board's BMI088 is initialized and running (`main.cpp`), calibrated once at startup, and
+oriented to the robot's frame via `setMountingTransform()` in `standard_control.cpp`.
+Nothing in this exercise uses it. It is live so that the follow-on exercises — position
+control, or holding a heading against chassis motion — have working orientation data to
+build on. `drivers->bmi088.getYaw()`, `getPitch()`, `getRoll()`, and `getGz()` are what you
+would reach for; the `debugYaw`/`debugPitch`/`debugRoll`/`debugYawRate` globals in
+`main.cpp` are there to watch in the debugger.
+
+Calibration averages gyro samples to find their bias, so **the robot must be sitting still**
+during the first second or so after the remote connects, or the bias is wrong and yaw
+drifts.

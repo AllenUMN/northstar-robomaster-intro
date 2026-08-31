@@ -20,26 +20,11 @@
 #ifndef ROBOT_CONTROL_HPP_
 #define ROBOT_CONTROL_HPP_
 
-#include "control/imu/imu_calibrate_command.hpp"
 #include "robot/standard/standard_drivers.hpp"
-#include "robot/turret/turret_drivers.hpp"
 
-#ifdef TARGET_STANDARD
 namespace src::standard
-#elif TARGET_SENTRY
-namespace src::sentry
-#elif TARGET_HERO
-namespace src::hero
-#elif TURRET
-namespace src::gyro
-#elif TARGET_TEST_BED
-namespace src::testbed
-#endif
 {
 void initSubsystemCommands(Drivers *drivers);
-// #ifndef TARGET_TEST_BED
-src::control::imu::ImuCalibrateCommandBase *getImuCalibrateCommand();
-// #endif
-}  // namespace tbh whatever you want it to be
+}  // namespace src::standard
 
 #endif  // ROBOT_CONTROL_HPP_

@@ -3,17 +3,7 @@
 
 #include "tap/drivers.hpp"
 
-#if defined(PLATFORM_HOSTED) && defined(ENV_UNIT_TESTS)
-#include "tap/mock/imu_terminal_serial_handler_mock.hpp"
-
-#else
-#include "tap/communication/sensors/imu/imu_terminal_serial_handler.hpp"
-
-#include "communication/sensors/encoder/pwm_encoder.hpp"
-#include "communication/serial/vision_comms.hpp"
 #include "robot/control_operator_interface.hpp"
-
-#endif
 
 namespace src::standard
 {
@@ -24,23 +14,11 @@ class Drivers : public tap::Drivers
 #ifdef ENV_UNIT_TESTS
 public:
 #endif
-    Drivers()
-        : tap::Drivers(),
-          controlOperatorInterface(this),
-          visionComms(this),
-          encoder(false, 1.0f)
-    {
-    }
+    Drivers() : tap::Drivers(), controlOperatorInterface(this) {}
 
-#if defined(PLATFORM_HOSTED) && defined(ENV_UNIT_TESTS)
-    testing::NiceMock<mock::ControlOperatorInterfaceMock> controlOperatorInterface;
-#else
 public:
     control::ControlOperatorInterface controlOperatorInterface;
-    serial::VisionComms visionComms;
-    tap::encoder::PwmEncoder encoder;
-#endif
-};  // class src::StandardDrivers
+};  // class src::standard::Drivers
 }  // namespace src::standard
 
 #endif  // STANDARD_DRIVERS_HPP_

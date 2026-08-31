@@ -1,5 +1,3 @@
-// #define FLYSKY
-
 /*
  * Copyright (c) 2020-2021 NorthStart
  *
@@ -51,24 +49,8 @@
 
 /* define timers here -------------------------------------------------------*/
 tap::arch::PeriodicMilliTimer sendMotorTimeout(tap::Drivers::DT);
-// tap::arch::PeriodicMilliTimer revTxPublisherTimeout(20);
-// tap::arch::PeriodicMilliTimer revHeartBeatTimeout(100);
 
-#ifdef TARGET_STANDARD
 using namespace src::standard;
-#elif TARGET_SENTRY
-using namespace src::sentry;
-#elif TARGET_HERO
-using namespace src::hero;
-#elif TURRET
-#include "communication/can/chassis/chassis_mcb_can_comm.hpp"
-using namespace src::gyro;
-ChassisMcbCanComm chassisMcbCanComm(DoNotUse_getDrivers());
-#elif TARGET_TEST_BED
-using namespace src::testbed;
-#endif
-
-// using namespace std::chrono_literals;
 
 // Place any sort of input/output initialization here. For example, place
 // serial init stuff here.
@@ -77,11 +59,8 @@ static void initializeIo(Drivers *drivers);
 // Anything that you would like to be called place here. It will be called
 // very frequently. Use PeriodicMilliTimers if you don't want something to be
 // called as frequently.
-
-uint16_t deltaTime = 0;
-uint16_t lastTime = 0;
-
 static void updateIo(Drivers *drivers);
+
 int main()
 {
 #ifdef PLATFORM_HOSTED
@@ -106,46 +85,26 @@ int main()
 
     while (1)
     {
-        //         // do this as fast as you can
+        // do this as fast as you can
         PROFILE(drivers->profiler, updateIo, (drivers));
 
         if (sendMotorTimeout.execute())
         {
-            uint16_t currentTTime = tap::arch::clock::getTimeMicroseconds();
-            deltaTime = currentTTime - lastTime;
-            lastTime = currentTTime;
-
+            // Fuses the latest accel/gyro samples into an orientation. Must run before
+            // the scheduler so that any control code sees fresh IMU data this tick.
             PROFILE(drivers->profiler, drivers->bmi088.periodicIMUUpdate, ());
 
-            PROFILE(drivers->profiler, drivers->encoder.update, ());
-
-            // PROFILE(drivers->profiler, drivers->terminalSerial.update, ());
+            // Runs every subsystem's refresh() and every scheduled command's execute().
             PROFILE(drivers->profiler, drivers->commandScheduler.run, ());
-#ifdef TURRET
-            PROFILE(drivers->profiler, chassisMcbCanComm.sendIMUData, ());
-            PROFILE(drivers->profiler, chassisMcbCanComm.sendSynchronizationRequest, ());
-#else
-            // PROFILE(drivers->profiler, drivers->turretMCBCanCommBus2.sendData, ());
+            // Packs whatever the subsystems asked for into CAN frames and sends them.
             PROFILE(drivers->profiler, drivers->djiMotorTxHandler.encodeAndSendCanData, ());
-#endif
         }
-        // #if defined(TARGET_STANDARD) || defined(TARGET_SENTRY)
-        //         if (revTxPublisherTimeout.execute())
-        //         {
-        //             PROFILE(drivers->profiler, drivers->revMotorTxHandler.encodeAndSendCanData,
-        //             ());
-        //         }
-        //         if (revHeartBeatTimeout.execute())
-        //         {
-        //             PROFILE(drivers->profiler, drivers->revMotorTxHandler.heartBeat, ());
-        //         }
-        PROFILE(drivers->profiler, drivers->visionComms.sendMessage, ());
 
-        // #endif
         modm::delay_us(10);
     }
     return 0;
 }
+
 static void initializeIo(Drivers *drivers)
 {
     // things we need to check controller
@@ -183,85 +142,50 @@ static void initializeIo(Drivers *drivers)
     drivers->can.initialize();
     drivers->errorController.init();
 
-    drivers->encoder.initialize();
-    drivers->visionComms.initializeUartDelays();
-
-    drivers->refSerial.initialize();
-
-#ifdef TARGET_HERO
-    drivers->bmi088.initialize(500, 0.1f, 0.000f);
-    drivers->bmi088.setTargetTemperature(35.0f);
-    drivers->bmi088.setCalibrationSamples(2000);
-#else
+    // The BMI088 is the board's onboard IMU. Nothing in the intro exercise uses it yet,
+    // but it is initialized here so that follow-on exercises (holding a position, or
+    // driving the motor from the gyro the way the turret holds its heading while the
+    // chassis moves underneath it) have working orientation data to build on.
     drivers->bmi088.initialize(500, 0.05f, 0.000f);
     drivers->bmi088.setTargetTemperature(35.0f);
     drivers->bmi088.setCalibrationSamples(2000);
-#endif
-
-    drivers->visionComms.initializeCV();
 }
-float debugXAccel = 0.0f;
-float debugYAccel = 0.0f;
-float debugZAccel = 0.0f;
+
+/*
+ * Handy to watch in the debugger while working with the IMU. Degrees, and rad/s.
+ */
 float debugYaw = 0.0f;
 float debugPitch = 0.0f;
 float debugRoll = 0.0f;
-float debugYawV = 0.0f;
-float debugPitchV = 0.0f;
-float debugRollV = 0.0f;
-bool conneccc = false;
-float debugLastAimDataYaw = 0.0f;
-float debugLastAimDataPitch = 0.0f;
-float dddddgfregr = 0;
-bool uartOnline = false;
-bool cal = false;
-bool calibrated = false;
-RefSerialData::Rx::RobotData robotData;
-uint16_t heat17;
-uint32_t rfidStat;
+float debugYawRate = 0.0f;
+
+static bool imuCalibrationRequested = false;
+
 static void updateIo(Drivers *drivers)
 {
-    // #ifndef TARGET_TEST_BED
-    if (!calibrated && drivers->remote.isConnected())
-    {
-        drivers->commandScheduler.addCommand(getImuCalibrateCommand());
-        calibrated = true;
-    }
-// #endif
 #ifdef PLATFORM_HOSTED
     tap::motorsim::SimHandler::updateSims();
 #endif
 
+    // Pulls motor feedback (position, velocity, torque) off the CAN bus.
     drivers->canRxHandler.pollCanData();
-    drivers->bmi088.read();
 
-#ifndef TURRET
-    drivers->refSerial.updateSerial();
-#ifndef FLYSKY
-    drivers->visionComms.updateSerial();
-#endif
+    // Pulls raw accel/gyro samples off SPI.
+    drivers->bmi088.read();
 
     drivers->remote.read();
 
-    if (cal)
+    // Zero the gyro once, on the first tick where the remote is alive. The robot must be
+    // sitting still for this -- calibration averages samples to find the gyro's bias, so
+    // any motion during it gets baked in as permanent drift.
+    if (!imuCalibrationRequested && drivers->remote.isConnected())
     {
-        cal = false;
         drivers->bmi088.requestCalibration();
+        imuCalibrationRequested = true;
     }
-    debugXAccel = drivers->bmi088.getAx();
-    debugYAccel = drivers->bmi088.getAy();
-    debugZAccel = drivers->bmi088.getAz();
-    debugYawV = drivers->bmi088.getGz();
+
     debugYaw = modm::toDegree(drivers->bmi088.getYaw());
-    debugPitchV = drivers->bmi088.getGy();
     debugPitch = modm::toDegree(drivers->bmi088.getPitch());
-    debugRollV = drivers->bmi088.getGx();
     debugRoll = modm::toDegree(drivers->bmi088.getRoll());
-    conneccc = drivers->remote.isConnected();
-    dddddgfregr = drivers->encoder.getPosition().getUnwrappedValue();
-    uartOnline = drivers->refSerial.getRefSerialReceivingData();
-    robotData = drivers->refSerial.getRobotData();
-    heat17 = drivers->refSerial.getRobotData().turret.heat17;
-    rfidStat = drivers->refSerial.getRobotData().rfidStatus.value;
-#endif
+    debugYawRate = drivers->bmi088.getGz();
 }

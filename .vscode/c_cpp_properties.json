@@ -56,60 +56,6 @@
             ]
         },
         {
-            "name": "sentry",
-            "includePath": [
-                "${default}",
-                "northstar-robomaster-project/taproot/modm/src",
-                "northstar-robomaster-project/taproot/modm/ext/cmsis/core",
-                "northstar-robomaster-project/taproot/modm/ext/cmsis/device",
-                "northstar-robomaster-project/taproot/modm/ext/cmsis/dsp"
-            ],
-            "compilerPath": "arm-none-eabi-g++",
-            "intelliSenseMode": "gcc-arm",
-            "browse": {
-                "limitSymbolsToIncludedHeaders": true
-            },
-            "defines": [
-                "TARGET_SENTRY"
-            ]
-        },
-        {
-            "name": "hero",
-            "includePath": [
-                "${default}",
-                "northstar-robomaster-project/taproot/modm/src",
-                "northstar-robomaster-project/taproot/modm/ext/cmsis/core",
-                "northstar-robomaster-project/taproot/modm/ext/cmsis/device",
-                "northstar-robomaster-project/taproot/modm/ext/cmsis/dsp"
-            ],
-            "compilerPath": "arm-none-eabi-g++",
-            "intelliSenseMode": "gcc-arm",
-            "browse": {
-                "limitSymbolsToIncludedHeaders": true
-            },
-            "defines": [
-                "TARGET_HERO"
-            ]
-        },
-        {
-            "name": "test-bed",
-            "includePath": [
-                "${default}",
-                "northstar-robomaster-project/taproot/modm/src",
-                "northstar-robomaster-project/taproot/modm/ext/cmsis/core",
-                "northstar-robomaster-project/taproot/modm/ext/cmsis/device",
-                "northstar-robomaster-project/taproot/modm/ext/cmsis/dsp"
-            ],
-            "compilerPath": "arm-none-eabi-g++",
-            "intelliSenseMode": "gcc-arm",
-            "browse": {
-                "limitSymbolsToIncludedHeaders": true
-            },
-            "defines": [
-                "TARGET_TEST_BED"
-            ]
-        },
-        {
             "name": "standard fly_sky",
             "includePath": [
                 "${default}",
@@ -125,64 +71,6 @@
             },
             "defines": [
                 "TARGET_STANDARD",
-                "FLY_SKY"
-            ]
-        },
-        {
-            "name": "sentry fly_sky",
-            "includePath": [
-                "${default}",
-                "northstar-robomaster-project/taproot/modm/src",
-                "northstar-robomaster-project/taproot/modm/ext/cmsis/core",
-                "northstar-robomaster-project/taproot/modm/ext/cmsis/device",
-                "northstar-robomaster-project/taproot/modm/ext/cmsis/dsp"
-            ],
-            "compilerPath": "arm-none-eabi-g++",
-            "intelliSenseMode": "gcc-arm",
-            "browse": {
-                "limitSymbolsToIncludedHeaders": true
-            },
-            "defines": [
-                "TARGET_SENTRY",
-                "FLY_SKY"
-            ]
-        },
-        {
-            "name": "hero fly_sky",
-            "includePath": [
-                "${default}",
-                "northstar-robomaster-project/taproot/modm/src",
-                "northstar-robomaster-project/taproot/modm/ext/cmsis/core",
-                "northstar-robomaster-project/taproot/modm/ext/cmsis/device",
-                "northstar-robomaster-project/taproot/modm/ext/cmsis/dsp"
-            ],
-            "compilerPath": "arm-none-eabi-g++",
-            "intelliSenseMode": "gcc-arm",
-            "browse": {
-                "limitSymbolsToIncludedHeaders": true
-            },
-            "defines": [
-                "TARGET_HERO",
-                "FLY_SKY"
-            ]
-        },
-        {
-            "name": "test-bed fly_sky",
-            "includePath": [
-                "${default}",
-                "northstar-robomaster-project/taproot/modm/src",
-                "northstar-robomaster-project/taproot/modm/ext/cmsis/core",
-                "northstar-robomaster-project/taproot/modm/ext/cmsis/device",
-                "northstar-robomaster-project/taproot/modm/ext/cmsis/dsp",
-                "${workspaceFolder}"
-            ],
-            "compilerPath": "arm-none-eabi-g++",
-            "intelliSenseMode": "gcc-arm",
-            "browse": {
-                "limitSymbolsToIncludedHeaders": true
-            },
-            "defines": [
-                "TARGET_TEST_BED",
                 "FLY_SKY"
             ]
         }

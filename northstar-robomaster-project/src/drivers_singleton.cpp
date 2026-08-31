@@ -21,17 +21,7 @@
 
 #include "drivers_singleton.hpp"
 
-#ifdef TARGET_STANDARD
 namespace src::standard
-#elif TARGET_SENTRY
-namespace src::sentry
-#elif TARGET_HERO
-namespace src::hero
-#elif TURRET
-namespace src::gyro
-#elif TARGET_TEST_BED
-namespace src::testbed
-#endif
 {
 /**
  * Class that allows one to construct a Drivers instance because of friendship
@@ -46,6 +36,6 @@ public:
 Drivers DriversSingleton::drivers;
 
 Drivers *DoNotUse_getDrivers() { return &DriversSingleton::drivers; }
-}  // namespace src
+}  // namespace src::standard
 
 #endif
