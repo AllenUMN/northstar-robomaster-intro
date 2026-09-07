@@ -26,10 +26,15 @@ Import("args")
 Import("sources")
 
 
-# Don't compile this stuff when testing
+# Don't compile this stuff when testing.
+#
+# These are globs for FindSourceFiles(".") below, so they are relative to *this* directory
+# (src/), not to the project root -- "main.cpp" matching is what proves it. A "*_control.cpp"
+# has to be excluded because it calls DoNotUse_getDrivers(), and drivers_singleton.hpp
+# compiles to nothing under ENV_UNIT_TESTS.
 IGNORED_FILES_WHILE_TESTING = [
     "main.cpp",
-    "src/robot/**/*_control.cpp",
+    "robot/**/*_control.cpp",
 ]
 
 ignored_files = []
