@@ -20,6 +20,21 @@ RUN ARCH="$(uname -m)" \
     
 ENV PATH="/opt/gcc-arm/bin:${PATH}"
 
+# GoogleTest/GoogleMock, which taproot's unit-test build links against system-wide.
+# The -dev packages normally ship the static libraries; if a release ever ships sources
+# only, build and install them from /usr/src/googletest instead. On Linux these land in
+# gcc's default search paths, so `scons run-tests` needs no extra environment (unlike
+# Windows -- see scripts/install_gtest.sh).
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        libgtest-dev libgmock-dev cmake \
+    && if ! ls /usr/lib/*/libgtest.a >/dev/null 2>&1 && [ -d /usr/src/googletest ]; then \
+         cmake -S /usr/src/googletest -B /tmp/gtest-build \
+         && cmake --build /tmp/gtest-build -j"$(nproc)" \
+         && cmake --install /tmp/gtest-build \
+         && rm -rf /tmp/gtest-build; \
+       fi \
+    && rm -rf /var/lib/apt/lists/*
+
 RUN pip3 install --no-cache-dir pipenv clang-format==18.1.8
 
 RUN git config --system core.autocrlf false \

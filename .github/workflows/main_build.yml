@@ -53,7 +53,17 @@ jobs:
         run: |
           pipenv run scons build profile=debug profiling=true robot=STANDARD
 
-      # 7. Build the unit tests
+      # 7. Build GoogleTest for the hosted (unit test) build.
+      # Taproot links the tests against a system-wide gtest/gmock, and windows-latest has
+      # neither, so build them with the same MinGW g++ SCons is about to use. This must run
+      # AFTER the hardware build: it exports gcc search-path variables that only the hosted
+      # build should see.
+      - name: Build GoogleTest
+        shell: bash
+        # cygpath, because RUNNER_TEMP is a native Windows path and this step is Git Bash.
+        run: GTEST_ENV_FILE="$GITHUB_ENV" bash scripts/install_gtest.sh "$(cygpath "$RUNNER_TEMP")/gtest"
+
+      # 8. Build the unit tests
       # These are expected to fail until the exercise TODOs are done, so CI only
       # checks that they COMPILE. Run them yourself with `scons run-tests`.
       - name: Build unit tests

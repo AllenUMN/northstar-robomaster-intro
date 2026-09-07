@@ -119,6 +119,16 @@ pipenv run scons run profile=debug robot=STANDARD
 
 ## Testing
 
+The tests link against GoogleTest, which is not vendored in this repo and is not installed
+by `pipenv install`. Build it once (from the repo root, in Git Bash on Windows):
+
+```
+bash scripts/install_gtest.sh
+```
+
+It prints two `export` lines. Put them in the shell you build from — or in `~/.bashrc`, so
+you don't have to think about it again. Then:
+
 ```
 pipenv run scons run-tests profile=fast robot=STANDARD
 ```
