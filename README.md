@@ -2,9 +2,25 @@
 
 Welcome. This is your first project on the robot codebase.
 
-By the end you will have made a motor spin under joystick control, using the same
-command-based structure the competition robots use. The repo has been stripped down to
-almost nothing so that the only code you have to understand is the code you are writing.
+A **GM6020 is a motor** — a DJI brushless gimbal motor with a built-in driver and absolute
+encoder, commanded over CAN rather than by a raw PWM signal. It is the motor that drives the
+turret yaw axis on the competition robots.
+
+By the end you will have made one spin under joystick control, using the same command-based
+structure the competition robots use. The repo has been stripped down to almost nothing so
+that the only code you have to understand is the code you are writing.
+
+---
+
+## Setup
+
+Follow [the Northstar Docker setup guide](https://github.com/Northstar-Advanced-Robotics/resources/blob/david/refactor/setup/docker.md)
+to get your machine into the dev container.
+
+That guide is the whole install. Once VS Code reopens in the container you are done: the ARM
+toolchain, Python, pipenv, clang-format and GoogleTest are already inside the image, and the
+project's Python dependencies install themselves the first time the container comes up.
+Nothing below this line needs any setup beyond that.
 
 ---
 
@@ -48,6 +64,10 @@ Make a GM6020 spin at a speed set by the left stick, with a velocity PID holding
 The files are already created and wired together. The build compiles right now and will
 flash to a board — the motor just won't move. Your job is to fill in four `TODO(student)`
 blocks.
+
+Every path in this section is relative to `northstar-robomaster-project/`. (The `taproot/`
+directory at the repo root is empty; the vendored copy of taproot lives inside the project
+folder.)
 
 ### 1. `src/control/motor/motor_subsystem.cpp` → `getCurrentRpm()`
 
@@ -94,38 +114,29 @@ Leave `maxOutput` alone — it is already correct, and the comment there explain
 
 ---
 
-## Building
+## Programming, testing and deploying
 
-From `northstar-robomaster-project/`:
+Everything here runs in the container. There is nothing to install first.
 
-```
-pipenv install                                    # once, to set up the toolchain
-pipenv run scons build profile=debug robot=STANDARD
-```
+The two things you do most often are VS Code tasks, so you can just hit a button:
 
-To flash a connected board over ST-Link:
+- **Build** — <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>B</kbd>, or
+  <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd> → *Tasks: Run Task* → **Build Standard**
+- **Test** — <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd> → *Tasks: Run Task* → **Run Tests**
 
-```
-pipenv run scons run profile=debug robot=STANDARD
-```
-
-`STANDARD` is the only robot target in this repo. Asking for any other one is an error.
-
-## Testing
-
-The tests link against GoogleTest, which is not vendored in this repo and is not installed
-by `pipenv install`. Build it once (from the repo root, in Git Bash on Windows):
+The equivalent commands, from `northstar-robomaster-project/`:
 
 ```
-bash scripts/install_gtest.sh
+pipenv run scons build profile=debug robot=STANDARD      # build the firmware
+pipenv run scons run-tests profile=fast robot=STANDARD   # build and run the unit tests
 ```
 
-It prints two `export` lines. Put them in the shell you build from — or in `~/.bashrc`, so
-you don't have to think about it again. Then:
+`STANDARD` is the only robot target in this repo. Asking for any other one is an error, and
+`robot=TARGET_STANDARD` does not work either — the argument is matched as a substring of the
+robot name, so spelling out the `TARGET_` prefix silently drops you into an interactive
+prompt.
 
-```
-pipenv run scons run-tests profile=fast robot=STANDARD
-```
+### The tests
 
 `test/motor_subsystem_tests.cpp` checks the subsystem half of the exercise: safe-disconnect
 behavior, the offline guard, and that the PID pushes the output in the right direction.
@@ -137,14 +148,27 @@ tuned ones, so they test your control loop, not your tuning.
 CI only checks that the tests *compile*, so you will not be blocked by a red build while
 you work.
 
+### Deploying
+
+The container builds the firmware; it does not flash it. Flashing and on-target debugging
+happen on your host machine, in SEGGER Ozone, against the `.elf` the container just produced
+at:
+
+```
+northstar-robomaster-project/build/hardware/scons-debug/TARGET_STANDARD/northstar-robomaster-project.elf
+```
+
+See [docs/ozone-debugging.md](docs/ozone-debugging.md) for how to point Ozone at it and get
+breakpoints binding.
+
 ---
 
 ## Checking your work on hardware
 
-You need a board and a GM6020 on **CAN1**, with the dial on the back of the motor set to
-position **1**. (Dial position sets the CAN ID: position 1 is `0x205`, which taproot calls
-`MOTOR5`. If the motor doesn't respond, check this first — it's in
-`standard_motor_constants.hpp` if you need a different one.)
+You need a control board (the MCB) and a GM6020 motor on **CAN1**, with the dial on the
+back of the motor set to position **1**. (Dial position sets the CAN ID: position 1 is
+`0x205`, which taproot calls `MOTOR5`. If the motor doesn't respond, check this first — it's
+in `standard_motor_constants.hpp` if you need a different one.)
 
 It's working when:
 
@@ -154,12 +178,14 @@ It's working when:
 - Releasing the stick coasts it to a stop.
 - Turning off the remote stops the motor immediately (`RemoteSafeDisconnectFunction`).
 
-⚠️ A GM6020 has real torque. Clamp it down and keep fingers and cables clear before you
-power it.
+**Warning:** a GM6020 has real torque. Clamp it down and keep fingers and cables clear
+before you power it.
 
 ---
 
 ## Where things live
+
+Rooted at `northstar-robomaster-project/`:
 
 ```
 src/
