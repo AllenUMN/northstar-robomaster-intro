@@ -5,11 +5,11 @@
             "name": "Debug Tests",
             "type": "cppdbg",
             "request": "launch",
-            "preLaunchTask": "Build Tests - Debug",
-            "program": "${workspaceFolder}/northstar-robomaster-project/build/tests/scons-debug/northstar-robomaster-project-tests.elf",
+            "preLaunchTask": "Build Tests",
+            "program": "${workspaceFolder}/northstar-robomaster-project/build/tests/scons-fast/TARGET_STANDARD/northstar-robomaster-project-tests.elf",
             "args": [],
             "stopAtEntry": false,
-            "cwd": "${workspaceFolder}",
+            "cwd": "${workspaceFolder}/northstar-robomaster-project",
             "environment": [],
             "externalConsole": false,
             "MIMode": "gdb",
@@ -19,130 +19,6 @@
                     "text": "-enable-pretty-printing",
                     "ignoreFailures": true
                 }
-            ]
-        },
-        {
-            "name": "Debug Sim",
-            "type": "cppdbg",
-            "request": "launch",
-            "preLaunchTask": "Build Sim - Debug",
-            "program": "${workspaceFolder}/northstar-robomaster-project/build/sim/scons-debug/northstar-robomaster-project.elf",
-            "args": [],
-            "stopAtEntry": false,
-            "cwd": "${workspaceFolder}",
-            "environment": [],
-            "externalConsole": false,
-            "MIMode": "gdb",
-            "setupCommands": [
-                {
-                    "description": "Enable pretty-printing for gdb",
-                    "text": "-enable-pretty-printing",
-                    "ignoreFailures": true
-                }
-            ]
-        },
-        {
-            "name": "Debug Standard",
-            "type": "cortex-debug",
-            "request": "launch",
-            "servertype": "openocd",
-            "cwd": "${workspaceRoot}",
-            "preLaunchTask": "Program - Debug (standard)",
-            "executable": "./northstar-robomaster-project/build/hardware/scons-debug/northstar-robomaster-project.elf",
-            "device": "STM32F427II",
-            "configFiles": [
-                "./northstar-robomaster-project/openocd.cfg"
-            ]
-        },
-        {
-            "name": "Debug Sentry",
-            "type": "cortex-debug",
-            "request": "launch",
-            "servertype": "openocd",
-            "cwd": "${workspaceRoot}",
-            "preLaunchTask": "Program - Debug (sentry)",
-            "executable": "./northstar-robomaster-project/build/hardware/scons-debug/northstar-robomaster-project.elf",
-            "device": "STM32F427II",
-            "configFiles": [
-                "./northstar-robomaster-project/openocd.cfg"
-            ]
-        },
-        {
-            "name": "Debug Hero",
-            "type": "cortex-debug",
-            "request": "launch",
-            "servertype": "openocd",
-            "cwd": "${workspaceRoot}",
-            "preLaunchTask": "Program - Debug (hero)",
-            "executable": "./northstar-robomaster-project/build/hardware/scons-debug/northstar-robomaster-project.elf",
-            "device": "STM32F427II",
-            "configFiles": [
-                "./northstar-robomaster-project/openocd.cfg"
-            ]
-        },
-        {
-            "name": "Debug Testbed",
-            "type": "cortex-debug",
-            "request": "launch",
-            "servertype": "openocd",
-            "cwd": "${workspaceRoot}",
-            "preLaunchTask": "Program - Debug (testbed)",
-            "executable": "./northstar-robomaster-project/build/hardware/scons-debug/northstar-robomaster-project.elf",
-            "device": "STM32F427II",
-            "configFiles": [
-                "./northstar-robomaster-project/openocd.cfg"
-            ]
-        },
-        {
-            "name": "Debug Standard FLY_SKY",
-            "type": "cortex-debug",
-            "request": "launch",
-            "servertype": "openocd",
-            "cwd": "${workspaceRoot}",
-            "preLaunchTask": "Program - Debug (standard fly_sky)",
-            "executable": "./northstar-robomaster-project/build/hardware/scons-debug/northstar-robomaster-project.elf",
-            "device": "STM32F427II",
-            "configFiles": [
-                "./northstar-robomaster-project/openocd.cfg"
-            ]
-        },
-        {
-            "name": "Debug Sentry FLY_SKY",
-            "type": "cortex-debug",
-            "request": "launch",
-            "servertype": "openocd",
-            "cwd": "${workspaceRoot}",
-            "preLaunchTask": "Program - Debug (sentry fly_sky)",
-            "executable": "./northstar-robomaster-project/build/hardware/scons-debug/northstar-robomaster-project.elf",
-            "device": "STM32F427II",
-            "configFiles": [
-                "./northstar-robomaster-project/openocd.cfg"
-            ]
-        },
-        {
-            "name": "Debug Hero FLY_SKY",
-            "type": "cortex-debug",
-            "request": "launch",
-            "servertype": "openocd",
-            "cwd": "${workspaceRoot}",
-            "preLaunchTask": "Program - Debug (hero fly_sky)",
-            "executable": "./northstar-robomaster-project/build/hardware/scons-debug/northstar-robomaster-project.elf",
-            "device": "STM32F427II",
-            "configFiles": [
-                "./northstar-robomaster-project/openocd.cfg"
-            ]
-        },
-        {
-            "name": "Debug Testbed FLY_SKY",
-            "type": "cortex-debug",
-            "request": "launch",
-            "servertype": "openocd",
-            "cwd": "${workspaceRoot}",
-            "preLaunchTask": "Program - Debug (testbed fly_sky)",
-            "executable": "./northstar-robomaster-project/build/hardware/scons-debug/northstar-robomaster-project.elf",
-            "device": "STM32F427II",
-            "configFiles": [
-                "./northstar-robomaster-project/openocd.cfg"
             ]
         }
     ]

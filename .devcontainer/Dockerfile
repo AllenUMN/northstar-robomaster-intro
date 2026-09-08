@@ -21,19 +21,22 @@ RUN ARCH="$(uname -m)" \
 ENV PATH="/opt/gcc-arm/bin:${PATH}"
 
 # GoogleTest/GoogleMock, which taproot's unit-test build links against system-wide.
-# The -dev packages normally ship the static libraries; if a release ever ships sources
-# only, build and install them from /usr/src/googletest instead. On Linux these land in
-# gcc's default search paths, so `scons run-tests` needs no extra environment (unlike
-# Windows -- see scripts/install_gtest.sh).
-RUN apt-get update && apt-get install -y --no-install-recommends \
-        libgtest-dev libgmock-dev cmake \
-    && if ! ls /usr/lib/*/libgtest.a >/dev/null 2>&1 && [ -d /usr/src/googletest ]; then \
-         cmake -S /usr/src/googletest -B /tmp/gtest-build \
-         && cmake --build /tmp/gtest-build -j"$(nproc)" \
-         && cmake --install /tmp/gtest-build \
-         && rm -rf /tmp/gtest-build; \
-       fi \
-    && rm -rf /var/lib/apt/lists/*
+# Built here by the repo's own script so the container, CI and any local host build all get
+# the same version compiled the same way -- see the header comment in install_gtest.sh for
+# why a prebuilt copy from anywhere else fails at link time.
+#
+# The prefix is /usr/local deliberately. Its include/ and lib/ are already on host gcc's
+# default search paths, so `scons run-tests` needs no CPLUS_INCLUDE_PATH or LIBRARY_PATH.
+# Setting those globally would also hand a host x86 include and library directory to
+# arm-none-eabi-g++ during the firmware build, which is exactly what we don't want.
+COPY scripts/install_gtest.sh /tmp/install_gtest.sh
+RUN bash /tmp/install_gtest.sh /usr/local && rm /tmp/install_gtest.sh
+
+# Fail the image build, not the student's first `scons run-tests`, if the above ever stops
+# landing where gcc looks.
+RUN printf '#include <gtest/gtest.h>\n#include <gmock/gmock.h>\nint main(){return 0;}\n' > /tmp/t.cpp \
+    && g++ -std=c++20 /tmp/t.cpp -lgtest -lgmock -lgtest_main -o /tmp/t \
+    && rm /tmp/t.cpp /tmp/t
 
 RUN pip3 install --no-cache-dir pipenv clang-format==18.1.8
 

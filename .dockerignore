@@ -1,0 +1,10 @@
+# The devcontainer build context is the repo root (see .devcontainer/devcontainer.json),
+# but the Dockerfile only needs scripts/install_gtest.sh. Everything expensive stays out so
+# `docker build` doesn't ship the vendored taproot tree and local build output to the daemon.
+.git
+northstar-robomaster-project/build
+northstar-robomaster-project/taproot
+docs/_build
+docs/api
+docs/doxyoutput
+**/*.pyc
