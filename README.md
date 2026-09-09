@@ -14,7 +14,7 @@ that the only code you have to understand is the code you are writing.
 
 ## Setup
 
-Follow [the Northstar Docker setup guide](https://github.com/Northstar-Advanced-Robotics/resources/blob/david/refactor/setup/docker.md)
+Follow [the Northstar Docker setup guide](https://github.com/Northstar-Advanced-Robotics/resources/blob/david/refactor/setup/docker_setup.md)
 to get your machine into the dev container.
 
 That guide is the whole install. Once VS Code reopens in the container you are done: the ARM
