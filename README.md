@@ -1,7 +1,9 @@
 # NorthStar Intro Project — Spin a GM6020 (SOLUTION BRANCH)
 
-> **This is the `solution` branch.** All four `TODO(student)` blocks are filled in.
-> Students should work on `develop`. `git diff develop..solution` is exactly the exercise.
+> **This is the `solution` branch.** All four `TODO(student)` blocks are filled in, so the
+> unit tests pass here — the rest of this README is written for students, where they
+> correctly fail to start. Students should work on `develop`.
+> `git diff develop..solution` is exactly the exercise.
 >
 > The PID gains here are a reasoned starting point, **not** a tuned result — they have
 > never been run against a real motor. See the comment in `standard_motor_constants.hpp`.
@@ -20,7 +22,7 @@ that the only code you have to understand is the code you are writing.
 
 ## Setup
 
-Follow [the Northstar Docker setup guide](https://github.com/Northstar-Advanced-Robotics/resources/blob/david/refactor/setup/docker.md)
+Follow [the Northstar Docker setup guide](https://github.com/Northstar-Advanced-Robotics/resources/blob/david/refactor/setup/docker_setup.md)
 to get your machine into the dev container.
 
 That guide is the whole install. Once VS Code reopens in the container you are done: the ARM
