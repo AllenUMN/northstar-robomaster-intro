@@ -31,7 +31,7 @@ static constexpr bool MOTOR_INVERTED = false;
 static constexpr float MOTOR_GEAR_RATIO = 1.0f;
 
 /// Roughly the GM6020's free-running speed. Full stick maps to this.
-static constexpr float MAX_MOTOR_RPM = 320.0f;
+static constexpr float MAX_MOTOR_RPM = 150.0f;
 
 /**
  * Gains for the velocity loop.
@@ -62,10 +62,10 @@ static constexpr float MAX_MOTOR_RPM = 320.0f;
  * instead would silently limit you to about 65% output.
  */
 static constexpr tap::algorithms::SmoothPidConfig VELOCITY_PID_CONFIG = {
-    .kp = 200.0f,
-    .ki = 0.5f,
+    .kp = 50.0f,
+    .ki = 5.0f,
     .kd = 0.0f,
-    .maxICumulative = 5000.0f,
+    .maxICumulative = 15000.0f,
     .maxOutput = tap::motor::DjiMotor::MAX_OUTPUT_GM6020,
     .tQDerivativeKalman = 1.0f,
     .tRDerivativeKalman = 0.0f,

@@ -36,7 +36,9 @@ float MotorSubsystem::getCurrentRpm() const
 }
 
 void MotorSubsystem::setTargetRpm(float targetRpm) { this->targetRpm = targetRpm; }
-
+float degfdbkerferror = 0;
+float taagjghhh = 0;
+float drtbtodiuh = 0;
 void MotorSubsystem::refresh()
 {
     // Nothing useful to do against a motor that is not answering, and running the PID
@@ -52,6 +54,9 @@ void MotorSubsystem::refresh()
     }
 
     const float error = targetRpm - getCurrentRpm();
+    degfdbkerferror = error;
+    taagjghhh = targetRpm;
+    drtbtodiuh = getCurrentRpm();
 
     velocityPid.runControllerDerivateError(error, tap::Drivers::DT);
 

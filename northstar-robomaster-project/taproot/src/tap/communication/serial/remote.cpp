@@ -386,7 +386,7 @@ void Remote::parseBufferFlySky(uint8_t rxBuffer[REMOTE_BUF_LEN_FLY_SKY])
     {
         int32_t raw = low_byte | (high_byte << 8);
         // Center at 0 (raw - 1500) * 1.32 = +- 660
-        return static_cast<int16_t>((raw - 1500) * 1.32f);
+        return static_cast<int16_t>((raw - 1500));
     };
 
     // 1. Remote Joysticks (Channels 1-4)
