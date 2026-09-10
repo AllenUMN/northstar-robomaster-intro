@@ -36,19 +36,23 @@ float MotorSubsystem::getCurrentRpm() const
     return 0.0f;
 }
 
-void MotorSubsystem::runVelocityPid(float targetRpm)
-{
-    this->targetRpm = targetRpm;
+void MotorSubsystem::setTargetRpm(float targetRpm) { this->targetRpm = targetRpm; }
 
+void MotorSubsystem::refresh()
+{
     // TODO(student): close the velocity loop. Roughly:
     //
-    //   1. If the motor is not online (`motor.isMotorOnline()`), call stop() and return
-    //      early. Skipping this lets the integral term wind up against a motor that is
-    //      not listening, so the motor lurches when it reconnects.
-    //   2. Compute the error: where we want to be, minus where we are (getCurrentRpm()).
+    //   1. If the motor is not online (`motor.isMotorOnline()`), call zeroOutput() and
+    //      return early. Skipping this lets the integral term wind up against a motor
+    //      that is not listening, so the motor lurches when it reconnects. Note it is
+    //      zeroOutput() and not stop() -- a momentary CAN dropout must not throw away
+    //      the speed a command asked for.
+    //   2. Compute the error: where we want to be (the `targetRpm` member, which
+    //      setTargetRpm() filled in earlier this tick), minus where we are
+    //      (getCurrentRpm()).
     //   3. Feed it to the PID: `velocityPid.runControllerDerivateError(error, dt)`.
-    //      Pass `tap::Drivers::DT` as dt -- this is called once per scheduler tick, and
-    //      DT is how many milliseconds that tick is.
+    //      Pass `tap::Drivers::DT` as dt -- the scheduler calls refresh() exactly once
+    //      per tick, and DT is how many milliseconds that tick is.
     //   4. Write the result out with `motor.setDesiredOutput(...)`.
     //
     // Until you do this, the motor will never move.
@@ -56,6 +60,14 @@ void MotorSubsystem::runVelocityPid(float targetRpm)
 }
 
 void MotorSubsystem::stop()
+{
+    // Clearing the target is what actually stops the motor -- refresh() runs after this
+    // and would otherwise re-apply the old speed on the very same tick.
+    targetRpm = 0.0f;
+    zeroOutput();
+}
+
+void MotorSubsystem::zeroOutput()
 {
     motor.setDesiredOutput(0);
     velocityPid.reset();
