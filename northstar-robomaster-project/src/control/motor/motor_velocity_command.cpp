@@ -20,17 +20,18 @@ MotorVelocityCommand::MotorVelocityCommand(
 
 void MotorVelocityCommand::execute()
 {
-    // Stick position in [-1, 1] scaled to the motor's usable speed range. This call is
-    // what steps the control loop -- the subsystem does nothing on its own.
-    motor->runVelocityPid(operatorInterface->getMotorVelocityInput() * MAX_MOTOR_RPM);
+    // Stick position in [-1, 1] scaled to the motor's usable speed range. This only
+    // records a target -- the subsystem's refresh() steps the control loop, later in
+    // this same tick.
+    motor->setTargetRpm(operatorInterface->getMotorVelocityInput() * MAX_MOTOR_RPM);
 }
 
 void MotorVelocityCommand::end([[maybe_unused]] bool interrupted)
 {
     // Whatever the reason we stopped -- remote disconnected, another command took over
-    // -- stop the motor rather than leaving it running at the last speed we commanded.
-    // Nothing else will do this for us: the subsystem's refresh() is empty, so without
-    // this the motor would happily keep spinning forever.
+    // -- clear the target. The subsystem's refresh() keeps running after we are gone and
+    // would happily hold the last speed we asked for forever; stop() is the only thing
+    // that clears it.
     motor->stop();
 }
 }  // namespace src::motor

@@ -52,16 +52,24 @@ The scheduler also guarantees that **only one command may control a given subsys
 time**. That is the whole point of the structure: without it, two behaviors that both want
 the chassis would fight, writing conflicting outputs on alternating ticks.
 
-In this project the control loop is *driven by the command*: `MotorVelocityCommand::execute()`
-calls `MotorSubsystem::runVelocityPid()` every tick, and the subsystem's `refresh()` is
-empty. That is how the turret works in the real codebase — the turret subsystem holds the
-motors, while whichever command is currently aiming runs the controller.
+That ordering matters: because commands execute *before* subsystems refresh, a target set
+this tick is acted on this tick.
 
-It matters because of where this goes next. Once velocity control works, a *position*
-controller, or one that holds a heading using the onboard IMU (the way the turret stays
-pointed while the chassis spins underneath it), is just another method on the subsystem
-plus another command. You pick between them by scheduling a different command; the
-subsystem never needs to know which mode it is in.
+In this project the control loop lives in the **subsystem**.
+`MotorVelocityCommand::execute()` only hands over a target speed, and
+`MotorSubsystem::refresh()` runs the PID and writes to the motor, every tick. Two
+consequences worth internalizing. First, the target *latches* — the motor keeps chasing the
+last thing it was told, so a command that stops running must call `stop()` in `end()` or
+the motor never stops. Second, the loop runs on a fixed schedule whether or not a command
+is scheduled, so `tap::Drivers::DT` is genuinely the timestep the PID is working with.
+
+The turret in the real codebase does the opposite — the command runs the controller — which
+buys it the ability to swap controllers by scheduling a different command. Here, adding a
+*position* controller later, or one that holds a heading using the onboard IMU (the way the
+turret stays pointed while the chassis spins underneath it), means giving the subsystem a
+control *mode* instead, because `refresh()` has to know which law to run. Both patterns are
+in the codebase; the question is always whether the subsystem or the command owns "what the
+motor is doing right now."
 
 ---
 
@@ -89,25 +97,28 @@ Get this wrong and the PID still "works" — it just regulates a number that's o
 constant factor from what you think, and your gains come out looking absurd. This is the
 most common way this exercise goes sideways.
 
-### 2. `src/control/motor/motor_subsystem.cpp` → `runVelocityPid()`
+### 2. `src/control/motor/motor_subsystem.cpp` → `refresh()`
 
-Close the loop:
+Close the loop. The scheduler calls this every tick, on its own:
 
-1. If `motor.isMotorOnline()` is false, call `stop()` and return early.
-2. Compute the error: target minus current.
+1. If `motor.isMotorOnline()` is false, call `zeroOutput()` and return early.
+2. Compute the error: the `targetRpm` member minus current.
 3. `velocityPid.runControllerDerivateError(error, dt)`, passing `tap::Drivers::DT` as `dt`.
 4. Write the result with `motor.setDesiredOutput(...)`.
 
 Step 1 is not optional bookkeeping. Skip it and the integral term winds up while the motor
-is unplugged, so the motor lurches at full output the moment it reconnects.
+is unplugged, so the motor lurches at full output the moment it reconnects. Note it calls
+`zeroOutput()` and not `stop()`: a momentary CAN dropout should zero the output, not throw
+away the speed the operator is asking for.
 
 ### 3. `src/control/motor/motor_velocity_command.cpp` → `execute()`
 
 One line. `operatorInterface->getMotorVelocityInput()` returns a number in `[-1, 1]`;
-`motor->runVelocityPid()` wants RPM; `MAX_MOTOR_RPM` is what full stick should mean.
+`motor->setTargetRpm()` wants RPM; `MAX_MOTOR_RPM` is what full stick should mean.
 
-This call is what actually steps the control loop. The subsystem does nothing on its own,
-so if `execute()` is empty the motor never moves no matter how good your PID is.
+This call only records a target — `refresh()` is what steps the control loop. Leave
+`execute()` empty and the motor holds 0 RPM under active control rather than doing nothing,
+so a working PID and an empty command look the same from across the room.
 
 ### 4. `src/robot/standard/standard_motor_constants.hpp` → PID gains
 
@@ -183,7 +194,8 @@ It's working when:
 - Pushing the left stick forward spins the motor, and further forward spins it faster.
 - The motor **holds its speed when you load it by hand** — that's the PID doing its job. An
   open-loop output would just slow down.
-- Releasing the stick coasts it to a stop.
+- Releasing the stick brings it to a stop and *holds* it there — the loop keeps running
+  against a target of zero, so it resists being turned by hand rather than freewheeling.
 - Turning off the remote stops the motor immediately (`RemoteSafeDisconnectFunction`).
 
 **Warning:** a GM6020 has real torque. Clamp it down and keep fingers and cables clear

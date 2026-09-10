@@ -35,16 +35,19 @@ float MotorSubsystem::getCurrentRpm() const
     return motor.getEncoder()->getVelocity() * 60.0f / M_TWOPI;
 }
 
-void MotorSubsystem::runVelocityPid(float targetRpm)
-{
-    this->targetRpm = targetRpm;
+void MotorSubsystem::setTargetRpm(float targetRpm) { this->targetRpm = targetRpm; }
 
+void MotorSubsystem::refresh()
+{
     // Nothing useful to do against a motor that is not answering, and running the PID
     // anyway would wind the integral term up while the output goes nowhere -- so the
     // motor would lurch the instant it reconnected.
+    //
+    // This deliberately calls zeroOutput() and not stop(): a momentary CAN dropout must
+    // zero the output without throwing away the speed a command asked for.
     if (!motor.isMotorOnline())
     {
-        stop();
+        zeroOutput();
         return;
     }
 
@@ -56,6 +59,14 @@ void MotorSubsystem::runVelocityPid(float targetRpm)
 }
 
 void MotorSubsystem::stop()
+{
+    // Clearing the target is what actually stops the motor -- refresh() runs after every
+    // command's end() and would otherwise re-apply the old speed on the very same tick.
+    targetRpm = 0.0f;
+    zeroOutput();
+}
+
+void MotorSubsystem::zeroOutput()
 {
     motor.setDesiredOutput(0);
     velocityPid.reset();

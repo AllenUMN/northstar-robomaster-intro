@@ -14,7 +14,7 @@
 namespace src::motor
 {
 /**
- * A Subsystem owning a single GM6020, with a velocity controller it exposes to Commands.
+ * A Subsystem owning a single GM6020, closing a velocity loop on it every tick.
  *
  * A Subsystem is a piece of robot hardware. It owns the motor and is the only thing
  * allowed to talk to it. Exactly one Command may control a given Subsystem at a time --
@@ -22,18 +22,26 @@ namespace src::motor
  * same motor.
  *
  * The split to understand:
- *   - A Command decides *what we want* -- "spin at 200 RPM" -- and runs every tick in
- *     execute().
- *   - The Subsystem provides *how to get it* -- runVelocityPid() -- and owns the motor
- *     and the PID state.
+ *   - A Command decides *what we want* -- "spin at 200 RPM" -- and hands that over with
+ *     setTargetRpm(). It never touches the motor or the PID.
+ *   - The Subsystem decides *how to get it*: refresh() runs one PID step against the
+ *     stored target and writes the output, every tick, whether or not a Command is
+ *     scheduled.
  *
- * The control loop runs when a Command drives it, not on its own. That is deliberate,
- * and it is how the turret works in the real codebase: the turret subsystem holds the
- * motors, while the various controllers get run by whichever command is currently
- * aiming. It means you can later add a *position* controller, or one that holds a
- * heading from the IMU, as a sibling of runVelocityPid() and pick between them by
- * scheduling a different Command -- without the subsystem needing to know which mode it
- * is in.
+ * The target latches. Setting it commands nothing by itself, and not setting it commands
+ * nothing new -- the loop keeps chasing the last value it was given. That is why a
+ * Command must call stop() in end(): stop() clears the target, and nothing else does.
+ *
+ * The tradeoff, versus running the controller from the Command (which is how the turret
+ * works in the real codebase). In favor: the scheduler calls refresh() exactly once per
+ * tick, so the timestep handed to the PID really is tap::Drivers::DT, and a Command that
+ * stops being scheduled cannot leave the motor holding a stale output. Against: this
+ * Subsystem now has one control law baked into refresh(). Adding a *position* controller
+ * later -- or one that holds a heading from the IMU -- means giving it a control *mode*,
+ * switched on inside refresh(), rather than just adding a sibling method and picking
+ * between them by scheduling a different Command. That mode is the price of the
+ * Subsystem, rather than its caller, being responsible for what the motor is doing right
+ * now.
  */
 class MotorSubsystem : public tap::control::Subsystem
 {
@@ -56,32 +64,36 @@ public:
     void initialize() override;
 
     /**
-     * Drives the motor toward `targetRpm` by one PID step and writes the result out.
+     * Sets the speed the velocity loop should chase, in RPM.
      *
-     * Call this once per tick from a Command's execute(). Calling it at an irregular
-     * rate will make the derivative and integral terms misbehave, since it assumes a
-     * fixed timestep of tap::Drivers::DT.
+     * This commands the motor nothing by itself -- it only records the target. refresh()
+     * is what acts on it, later in the same tick. The value latches: you stop the motor
+     * with stop(), not by ceasing to call this.
      *
      * @param targetRpm the speed to aim for, in RPM.
      */
-    mockable void runVelocityPid(float targetRpm);
+    mockable void setTargetRpm(float targetRpm);
 
     /**
-     * Immediately commands zero output and clears the PID's accumulated state.
+     * Clears the target, commands zero output, and clears the PID's accumulated state.
      *
-     * Commands should call this in end(). Clearing the PID matters: without it, integral
-     * wound up during the last run gets applied the instant the next command starts.
+     * Commands must call this in end(). Clearing the target is the load-bearing part:
+     * refresh() runs after every Command's execute(), so a stop() that only wrote a zero
+     * would be undone by refresh() on the very same tick. Clearing the PID matters too --
+     * integral wound up during the last run would otherwise land the instant the next
+     * command starts.
      */
     mockable void stop();
 
     /**
-     * Called every tick by the scheduler, whether or not a command is running.
+     * Runs one step of the velocity loop and writes the result to the motor.
      *
-     * Deliberately empty: control lives in runVelocityPid(), driven by a Command. It is
-     * overridden here because Subsystem requires it, and to make the "where does the
-     * control actually happen" question answerable by reading this file.
+     * Called by the scheduler every tick, after every scheduled Command's execute(), so
+     * it always sees a target set this tick. It runs whether or not a Command is
+     * scheduled, and it assumes the fixed timestep tap::Drivers::DT -- which holds,
+     * because the scheduler calls it exactly once per tick.
      */
-    void refresh() override {}
+    void refresh() override;
 
     /// Called instead of refresh() when the remote disconnects. Must stop the motor.
     void refreshSafeDisconnect() override;
@@ -100,11 +112,14 @@ public:
 #endif
 
 private:
+    /// Commands zero and clears PID state, leaving the target alone.
+    void zeroOutput();
+
     Motor motor;
 
     tap::algorithms::SmoothPid velocityPid;
 
-    /// The speed most recently asked for, in RPM. Kept for introspection only.
+    /// The speed the loop is chasing, in RPM. Read by refresh() every tick.
     float targetRpm = 0.0f;
 };  // class MotorSubsystem
 }  // namespace src::motor
