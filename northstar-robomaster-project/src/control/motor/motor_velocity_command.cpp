@@ -20,22 +20,23 @@ MotorVelocityCommand::MotorVelocityCommand(
 
 void MotorVelocityCommand::execute()
 {
-    // TODO(student): read the joystick and drive the motor toward that speed.
+    // TODO(student): read the joystick and hand the subsystem that target speed.
     //
     // `operatorInterface->getMotorVelocityInput()` gives you a number in [-1, 1].
-    // `motor->runVelocityPid(...)` wants RPM. `MAX_MOTOR_RPM` (in
+    // `motor->setTargetRpm(...)` wants RPM. `MAX_MOTOR_RPM` (in
     // standard_motor_constants.hpp) is what full stick should correspond to.
     //
-    // One line. Note that this is what actually steps the control loop -- the subsystem
-    // does nothing on its own, so if this is empty the motor never moves.
+    // One line. Note this only records a target -- the subsystem's refresh() is what
+    // steps the control loop, later in this same tick. If this is empty the motor sits
+    // at 0 RPM under active control rather than doing nothing.
 }
 
 void MotorVelocityCommand::end([[maybe_unused]] bool interrupted)
 {
     // Whatever the reason we stopped -- remote disconnected, another command took over
-    // -- stop the motor rather than leaving it running at the last speed we commanded.
-    // Nothing else will do this for us: the subsystem's refresh() is empty, so without
-    // this the motor would happily keep spinning forever.
+    // -- clear the target. The subsystem's refresh() keeps running after we are gone and
+    // would happily hold the last speed we asked for forever; stop() is the only thing
+    // that clears it.
     motor->stop();
 }
 }  // namespace src::motor

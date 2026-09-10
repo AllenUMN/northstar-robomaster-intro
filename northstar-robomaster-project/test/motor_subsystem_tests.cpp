@@ -63,13 +63,21 @@ TEST_F(MotorSubsystemTest, target_rpm_starts_at_zero)
     EXPECT_FLOAT_EQ(0.0f, subsystem.getTargetRpm());
 }
 
-TEST_F(MotorSubsystemTest, run_velocity_pid_records_the_target)
+TEST_F(MotorSubsystemTest, set_target_rpm_records_the_target)
+{
+    subsystem.setTargetRpm(150.0f);
+
+    EXPECT_FLOAT_EQ(150.0f, subsystem.getTargetRpm());
+}
+
+TEST_F(MotorSubsystemTest, set_target_rpm_alone_commands_nothing)
 {
     ON_CALL(subsystem.getMotorForTest(), isMotorOnline).WillByDefault(Return(true));
 
-    subsystem.runVelocityPid(150.0f);
+    // Setting a target is a request, not a command. refresh() is what acts on it.
+    EXPECT_CALL(subsystem.getMotorForTest(), setDesiredOutput).Times(0);
 
-    EXPECT_FLOAT_EQ(150.0f, subsystem.getTargetRpm());
+    subsystem.setTargetRpm(150.0f);
 }
 
 TEST_F(MotorSubsystemTest, stop_commands_zero_output)
@@ -87,15 +95,21 @@ TEST_F(MotorSubsystemTest, safe_disconnect_commands_zero_output)
     subsystem.refreshSafeDisconnect();
 }
 
-TEST_F(MotorSubsystemTest, offline_motor_commands_zero_output)
+TEST_F(MotorSubsystemTest, offline_motor_commands_zero_output_without_losing_the_target)
 {
     // With the motor unplugged we must write 0 rather than letting the integral
     // term wind up against a motor that is not listening.
     ON_CALL(subsystem.getMotorForTest(), isMotorOnline).WillByDefault(Return(false));
 
+    subsystem.setTargetRpm(200.0f);
+
     EXPECT_CALL(subsystem.getMotorForTest(), setDesiredOutput(0));
 
-    subsystem.runVelocityPid(200.0f);
+    subsystem.refresh();
+
+    // A momentary dropout zeroes the output, not what the command asked for -- so use
+    // zeroOutput() here, not stop().
+    EXPECT_FLOAT_EQ(200.0f, subsystem.getTargetRpm());
 }
 
 TEST_F(MotorSubsystemTest, positive_error_drives_positive_output)
@@ -104,18 +118,22 @@ TEST_F(MotorSubsystemTest, positive_error_drives_positive_output)
     // and we ask it to spin forward. The PID should push the output positive.
     ON_CALL(subsystem.getMotorForTest(), isMotorOnline).WillByDefault(Return(true));
 
+    subsystem.setTargetRpm(100.0f);
+
     EXPECT_CALL(subsystem.getMotorForTest(), setDesiredOutput(Gt(0)));
 
-    subsystem.runVelocityPid(100.0f);
+    subsystem.refresh();
 }
 
 TEST_F(MotorSubsystemTest, negative_error_drives_negative_output)
 {
     ON_CALL(subsystem.getMotorForTest(), isMotorOnline).WillByDefault(Return(true));
 
+    subsystem.setTargetRpm(-100.0f);
+
     EXPECT_CALL(subsystem.getMotorForTest(), setDesiredOutput(Lt(0)));
 
-    subsystem.runVelocityPid(-100.0f);
+    subsystem.refresh();
 }
 
 TEST_F(MotorSubsystemTest, zero_target_produces_zero_output)
@@ -125,14 +143,60 @@ TEST_F(MotorSubsystemTest, zero_target_produces_zero_output)
 
     EXPECT_CALL(subsystem.getMotorForTest(), setDesiredOutput(0));
 
-    subsystem.runVelocityPid(0.0f);
+    subsystem.refresh();
 }
 
-TEST_F(MotorSubsystemTest, refresh_alone_does_not_drive_the_motor)
+TEST_F(MotorSubsystemTest, refresh_keeps_driving_toward_the_last_target)
 {
-    // Control is driven by a Command calling runVelocityPid(), not by refresh().
-    // refresh() running on its own must not command anything.
-    EXPECT_CALL(subsystem.getMotorForTest(), setDesiredOutput).Times(0);
+    // The target latches: the subsystem keeps closing the loop on its own, without a
+    // command re-stating what it wants every tick.
+    ON_CALL(subsystem.getMotorForTest(), isMotorOnline).WillByDefault(Return(true));
+
+    subsystem.setTargetRpm(100.0f);
+
+    EXPECT_CALL(subsystem.getMotorForTest(), setDesiredOutput(Gt(0))).Times(2);
 
     subsystem.refresh();
+    subsystem.refresh();
+}
+
+TEST_F(MotorSubsystemTest, refresh_uses_the_most_recent_target)
+{
+    ON_CALL(subsystem.getMotorForTest(), isMotorOnline).WillByDefault(Return(true));
+
+    subsystem.setTargetRpm(100.0f);
+    subsystem.setTargetRpm(-100.0f);
+
+    EXPECT_CALL(subsystem.getMotorForTest(), setDesiredOutput(Lt(0)));
+
+    subsystem.refresh();
+}
+
+TEST_F(MotorSubsystemTest, stop_clears_the_target_so_a_later_refresh_stays_at_zero)
+{
+    // This is the one that fails loudly if stop() only writes a zero without clearing
+    // the target: refresh() runs after every command's end(), so it would put the motor
+    // straight back to the speed we just stopped.
+    ON_CALL(subsystem.getMotorForTest(), isMotorOnline).WillByDefault(Return(true));
+
+    subsystem.setTargetRpm(200.0f);
+    subsystem.stop();
+
+    EXPECT_FLOAT_EQ(0.0f, subsystem.getTargetRpm());
+
+    EXPECT_CALL(subsystem.getMotorForTest(), setDesiredOutput(0));
+
+    subsystem.refresh();
+}
+
+TEST_F(MotorSubsystemTest, safe_disconnect_clears_the_target)
+{
+    // On the tick the remote comes back, refresh() runs before the default command is
+    // re-scheduled. A target left over from before the disconnect would get one full
+    // tick of output before anything corrected it.
+    subsystem.setTargetRpm(200.0f);
+
+    subsystem.refreshSafeDisconnect();
+
+    EXPECT_FLOAT_EQ(0.0f, subsystem.getTargetRpm());
 }
